@@ -102,3 +102,9 @@
 3. **PowerShell 的 `$ErrorActionPreference='Stop'` 会把 g++ 的 stderr 警告变成致命错误**。
    → 脚本改成 `Continue`，靠 `$LASTEXITCODE` 显式判断。
 4. 运行脚本需要绕执行策略：`powershell -ExecutionPolicy Bypass -File build.ps1 test`。
+5. **git 自带的 ssh 读不到 `~/.ssh/known_hosts`**（`D:\Git\usr\bin\ssh.exe`，用户名含非 ASCII 时 HOME 解析不一致），
+   表现为 `Host key verification failed` —— 但认证其实是通的，很容易误判成"key 没加"。
+   修法（已配好）：`git config --global core.sshCommand "C:/Windows/System32/OpenSSH/ssh.exe"`。
+6. **本机 HTTPS 到 GitHub 不通**（TLS 握手被重置，且 TLS1.2 也不行），只能用 SSH remote：`git@github.com:...`。
+7. 新建仓库时勾了 README → 首次推送被拒（`fetch first`）。
+   处理：`git rebase -X theirs origin/main`，保留对方的 Initial commit，冲突文件采用本地版本，历史保持线性。
