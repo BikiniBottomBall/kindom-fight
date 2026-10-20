@@ -73,12 +73,32 @@
 
 ---
 
-## 现在这一批（我今天动手的部分）
+## 已完成（第一批：S0 → S1 → S2）
 
-只做 **S0.1 → S0.2 → S0.3 → S1 → S2**。理由：这五个是地基，做完你能立刻看到
-"4 个玩家、5 个区域、12 张卡"的数据结构被打印出来，而且回合循环能空跑 12 回合。
+现状：**S0 / S1 / S2 全部完成，35 个单元测试全绿，demo 可跑完 12 回合并正常判定胜者。**
 
-做完我会给你：
-- 可运行的 `cmake --build build && ctest`
-- 一段能打印初始局面和 12 回合空转日志的输出
-- 下一步（S3 经济 / S4 合法性 / S5 战斗）的接口签名，你推演完规则直接填数值
+| 交付 | 位置 |
+|---|---|
+| 离线构建脚本（g++，无 cmake 也能编） | `build.ps1` |
+| CMake 构建（CI / WSL 用） | `CMakeLists.txt` + `.github/workflows/ci.yml` |
+| 零依赖测试框架（本机无外网，拉不到 GoogleTest） | `tests/test_framework.h` |
+| 数据模型：兵种/军队/领地邻接/12 张卡 | `src/logic/{types,region,card_def}.h` |
+| 回合驱动：同时决策 → 结算 → 事件流 | `src/logic/{command,event,engine}.h` |
+| 纯文本战报 | `src/logic/report.h` |
+
+**明确未实现、且会显式报 `NotImplemented` 的缝隙**（不静默丢弃，避免"看起来对了但其实没算"）：
+经济产出、建筑完工、移动/进攻、战斗结算。
+
+下一步顺序：**S3 经济 → S4 合法性校验 → S5 战斗结算**。
+
+---
+
+## 环境踩坑记录（给以后的自己）
+
+1. **本机无外网**：HTTPS 到 GitHub / PyPI 全部 TLS 失败，无代理端口。所以没有 cmake、没有 GoogleTest，
+   改用 `g++ + build.ps1` + 自带测试框架。CMake 留到 CI/WSL 验证。
+2. **Windows PowerShell 5.1 读无 BOM 的 UTF-8 会乱码**，`.ps1` 里出现中文会导致解析报错。
+   → `build.ps1` 全文只用 ASCII。
+3. **PowerShell 的 `$ErrorActionPreference='Stop'` 会把 g++ 的 stderr 警告变成致命错误**。
+   → 脚本改成 `Continue`，靠 `$LASTEXITCODE` 显式判断。
+4. 运行脚本需要绕执行策略：`powershell -ExecutionPolicy Bypass -File build.ps1 test`。
