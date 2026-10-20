@@ -10,6 +10,7 @@
 #include <cstdio>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <vector>
 
 namespace lg_test {
@@ -38,9 +39,12 @@ inline void report_failure(const char* file, int line, const std::string& messag
     std::printf("    [FAIL] %s:%d  %s\n", file, line, message.c_str());
 }
 
-inline std::string to_debug(int value) { return std::to_string(value); }
-inline std::string to_debug(long long value) { return std::to_string(value); }
-inline std::string to_debug(unsigned long long value) { return std::to_string(value); }
+// 整型用模板一把罩住：size_t 在 Windows 是 unsigned long long、在 Linux 是
+// unsigned long，写成具体重载会在某个平台上产生歧义（踩过）。
+template <typename T, typename = std::enable_if_t<std::is_integral_v<T> && !std::is_same_v<T, bool>>>
+std::string to_debug(T value) {
+    return std::to_string(value);
+}
 inline std::string to_debug(bool value) { return value ? "true" : "false"; }
 inline std::string to_debug(const char* value) { return value != nullptr ? value : "(null)"; }
 inline std::string to_debug(const std::string& value) { return value; }

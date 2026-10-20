@@ -30,7 +30,7 @@ $CXX      = 'g++'
 $WARN     = @('-std=c++20', '-Wall', '-Wextra', '-Wpedantic', '-Wshadow')
 $INCLUDES = @("-I$(Join-Path $root 'src')")
 $CXXFLAGS = $WARN + $INCLUDES + @('-O2', '-g')
-$LDFLAGS  = @('-static', '-static-libgcc', '-static-libstdc++')
+$LDFLAGS  = @('-static', '-static-libgcc', '-static-libstdc++', '-lws2_32')
 
 function Remove-BuildOutput {
     if (Test-Path $build) { Remove-Item -Recurse -Force $build }
@@ -87,7 +87,14 @@ function Invoke-Build {
         $cliExe = Invoke-Link ($coreObjects + $cliObject) 'kingdom_fight_cli.exe'
     }
 
-    # 4) unit tests
+    # 4) net 层验收用 echo 服务端 (S12)
+    $echoExe = $null
+    if (Test-Path (Join-Path $root 'tools/echo_server.cpp')) {
+        $echoObject = Invoke-Compile 'tools/echo_server.cpp'
+        $echoExe = Invoke-Link ($coreObjects + $echoObject) 'kingdom_fight_echo.exe'
+    }
+
+    # 5) unit tests
     $testObjects = @()
     foreach ($src in (Get-CppSources 'tests')) {
         $testObjects += Invoke-Compile $src
@@ -98,8 +105,9 @@ function Invoke-Build {
     Write-Host 'build ok:'
     Write-Host "  demo : $demoExe"
     if ($cliExe) { Write-Host "  play : $cliExe" }
+    if ($echoExe) { Write-Host "  echo : $echoExe" }
     Write-Host "  tests: $testExe"
-    return @{ Demo = $demoExe; Cli = $cliExe; Tests = $testExe }
+    return @{ Demo = $demoExe; Cli = $cliExe; Echo = $echoExe; Tests = $testExe }
 }
 
 function Invoke-Tests([string]$testExe) {

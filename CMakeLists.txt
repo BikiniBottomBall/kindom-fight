@@ -31,9 +31,19 @@ add_library(kingdom_fight_core STATIC
     src/logic/engine.cpp
     src/logic/report.cpp
     src/ai/simple_ai.cpp
+    src/net/protocol.cpp
+    src/net/decoder.cpp
+    src/net/socket.cpp
+    src/net/poller.cpp
+    src/net/poller_select.cpp
+    src/net/poller_epoll.cpp
+    src/net/channel.cpp
 )
 target_include_directories(kingdom_fight_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(kingdom_fight_core PRIVATE kingdom_fight_warnings)
+if(WIN32)
+    target_link_libraries(kingdom_fight_core PUBLIC ws2_32)
+endif()
 
 # --- AI 自动对局 demo -----------------------------------------------------
 add_executable(kingdom_fight src/main.cpp)
@@ -42,6 +52,10 @@ target_link_libraries(kingdom_fight PRIVATE kingdom_fight_core kingdom_fight_war
 # --- S10 终端客户端：你 vs AI ---------------------------------------------
 add_executable(kingdom_fight_cli client/cli/main.cpp)
 target_link_libraries(kingdom_fight_cli PRIVATE kingdom_fight_core kingdom_fight_warnings)
+
+# --- S12 验收用 echo 服务端 -----------------------------------------------
+add_executable(kingdom_fight_echo tools/echo_server.cpp)
+target_link_libraries(kingdom_fight_echo PRIVATE kingdom_fight_core kingdom_fight_warnings)
 
 # --- 单元测试 ------------------------------------------------------------
 enable_testing()
@@ -52,6 +66,7 @@ add_executable(kingdom_fight_tests
     tests/test_region.cpp
     tests/test_cards.cpp
     tests/test_combat.cpp
+    tests/test_protocol.cpp
     tests/test_engine.cpp
 )
 target_include_directories(kingdom_fight_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)

@@ -72,5 +72,42 @@
   → 瓶颈是"征服速度"，不是门槛。原因是进攻收益（+1 领地 = 永久 +2 金/回合）远高于发育收益（+1~2 兵/回合）。
 - 下一步：参数搬进运行时 `GameConfig` → 做自动对局统计 → 用数据验证假设，而不是继续拍脑袋调数值。
 
+## S11 传输与协议分层
+- `src/net/protocol.h`：13 字节头 + 大端序，`magic | version | cmd | seq | payload_len | payload`。
+- **传输与协议解耦**：长度前缀（TCP）只是外壳，以后接 WebSocket 只换编解码层。
+- **`seq` 是幂等地基**：断线重连后客户端重发未确认指令，服务端靠它去重。
+- 单帧 payload 上限 64KB，超限直接判非法帧（防止"声明 2GB"式攻击）。
+
+## S12 epoll Reactor + 跨平台 poller
+- `src/net/socket.*`：socket RAII 封装。Windows 的 SOCKET 是 UINT_PTR，所以句柄统一用
+  `intptr_t`；`INVALID_SOCKET` 展开成 ~0，转成 intptr_t 正好 -1，两个平台共用一个哨兵。
+- `src/net/poller.*`：poller 抽象 + **两套实现**
+  - Linux：`epoll`（**水平触发 LT**）。没用 ET：ET 要求每次必须读到 EAGAIN，
+    漏读一次该连接就永久饿死，且偶发难复现。先保证正确，压测阶段再对比 ET 收益。
+  - Windows：`select`（也是 POSIX 兜底）。O(n) 拷贝/遍历 + FD_SETSIZE 限制 —— epoll 存在的理由。
+  - `KF_POLLER=select` 可强制降级，便于在 Linux 上做两种实现的同组用例对比。
+- `src/net/channel.*`：socket + 帧解码器 + 写队列；非阻塞 send 只写出一部分也不丢数据。
+- `tools/echo_server.cpp`：不玩牌，只验证"能收能发能正确关闭"。
+
+## S13 编解码（粘包 / 半包 / 超长帧）
+- `src/net/decoder.*` + `src/net/byte_buffer.h`：缓冲 + 状态机切帧。
+- 12 个单测：一次三帧、逐字节喂、payload 中间断开、magic 错、版本错、
+  声明 2GB、失败后不复活、64KB 边界。
+- **双平台实测**（这是本轮的验收重点）：
+
+  | 平台 | poller | 单测 | 真 TCP 冒烟 |
+  |---|---|---|---|
+  | Windows | select | 78/78 | 完整帧 / 半包 / 粘包 全 PASS |
+  | WSL Ubuntu（g++ 15.2） | **epoll(LT)** | 78/78 | 三个用例全 PASS |
+  | WSL Ubuntu（KF_POLLER=select） | select | — | 三个用例全 PASS |
+
+- 新增 `build.sh`（Linux/WSL 构建）与 `tools/smoke_net.sh`（网络冒烟，python3 当客户端）。
+
+## 跨平台踩坑记录
+- `size_t` 在 Windows 是 `unsigned long long`、Linux 是 `unsigned long`，
+  测试框架的 `to_debug` 写具体重载会在某个平台上歧义 → 改成整型模板。
+- Linux 下 `TCP_NODELAY` 需要 `<netinet/tcp.h>`；`select` 的 `timeval*` 不是 const。
+- Windows 下 `WIN32_LEAN_AND_MEAN` / `NOMINMAX` 重复定义会产生警告 → 加 `#ifndef` 守卫。
+
 ## 质量基线
-- 66 个单元测试全绿；事件流在"同种子 + 同指令"下逐字节可复现。
+- 78 个单元测试全绿（Windows + Linux 双平台）；事件流在"同种子 + 同指令"下逐字节可复现。
