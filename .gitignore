@@ -1,0 +1,36 @@
+# 构建产物
+build/
+out/
+cmake-build-*/
+*.o
+*.obj
+*.exe
+*.pdb
+*.ilk
+*.dll
+*.lib
+*.a
+
+# IDE / 编辑器
+.vs/
+.vscode/
+.idea/
+.cache/
+compile_commands.json
+*.user
+*.swp
+*.swo
+
+# Godot（client/godot，见 ADR 0002）
+.godot/
+*.import
+export_presets.cfg
+client/godot/.import/
+
+# 系统
+Thumbs.db
+.DS_Store
+
+# 临时
+*.log
+*.tmp
