@@ -6,7 +6,7 @@
 #include "logic/card_def.h"
 #include "logic/region.h"
 
-namespace landgrab {
+namespace kingdom_fight {
 namespace {
 
 std::string owner_tag(PlayerId id) {
@@ -90,4 +90,4 @@ void print_event_summary(const std::vector<Event>& log) {
     }
 }
 
-}  // namespace landgrab
+}  // namespace kingdom_fight

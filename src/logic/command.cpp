@@ -1,6 +1,6 @@
 #include "logic/command.h"
 
-namespace landgrab {
+namespace kingdom_fight {
 
 const char* to_string(OrderType type) {
     switch (type) {
@@ -14,4 +14,4 @@ const char* to_string(OrderType type) {
     return "未知";
 }
 
-}  // namespace landgrab
+}  // namespace kingdom_fight

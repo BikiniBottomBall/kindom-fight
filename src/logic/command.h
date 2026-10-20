@@ -6,7 +6,7 @@
 
 #include "logic/types.h"
 
-namespace landgrab {
+namespace kingdom_fight {
 
 enum class OrderType : int {
     Pass = 0,     // 放弃/超时占位
@@ -28,4 +28,4 @@ struct Command {
     int card = -1;
 };
 
-}  // namespace landgrab
+}  // namespace kingdom_fight

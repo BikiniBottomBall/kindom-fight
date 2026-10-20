@@ -1,10 +1,10 @@
 #include "logic/types.h"
 #include "test_framework.h"
 
-using landgrab::Army;
-using landgrab::counter_percent;
-using landgrab::counters;
-using landgrab::UnitType;
+using kingdom_fight::Army;
+using kingdom_fight::counter_percent;
+using kingdom_fight::counters;
+using kingdom_fight::UnitType;
 
 TEST(ArmyTotalAndAdd) {
     Army army;

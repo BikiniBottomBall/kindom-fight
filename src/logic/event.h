@@ -10,7 +10,7 @@
 
 #include "logic/types.h"
 
-namespace landgrab {
+namespace kingdom_fight {
 
 enum class EventType : int {
     GameBegin = 0,      // a = 玩家数
@@ -65,4 +65,4 @@ struct Event {
     [[nodiscard]] std::string describe() const;
 };
 
-}  // namespace landgrab
+}  // namespace kingdom_fight

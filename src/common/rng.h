@@ -8,7 +8,7 @@
 
 #include <cstdint>
 
-namespace landgrab {
+namespace kingdom_fight {
 
 class Rng {
 public:
@@ -39,4 +39,4 @@ private:
     std::uint64_t state_;
 };
 
-}  // namespace landgrab
+}  // namespace kingdom_fight

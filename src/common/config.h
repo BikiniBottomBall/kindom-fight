@@ -1,7 +1,7 @@
 // 全局可调参数。所有"魔法数字"集中在这里，方便 S5 之后调平衡。
 #pragma once
 
-namespace landgrab {
+namespace kingdom_fight {
 
 // 一局多少人。设计稿：3-4 人混战；2 人局保留以便测试与匹配降级。
 inline constexpr int kMaxPlayers = 4;
@@ -32,4 +32,4 @@ struct GameConfig {
     int ap_per_turn = kApPerTurn;
 };
 
-}  // namespace landgrab
+}  // namespace kingdom_fight

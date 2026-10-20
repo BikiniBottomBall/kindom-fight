@@ -4,7 +4,7 @@
 #include <array>
 #include <cstdint>
 
-namespace landgrab {
+namespace kingdom_fight {
 
 using PlayerId = int;
 using RegionId = int;
@@ -47,4 +47,4 @@ struct Army {
     friend bool operator!=(const Army& lhs, const Army& rhs) { return !(lhs == rhs); }
 };
 
-}  // namespace landgrab
+}  // namespace kingdom_fight

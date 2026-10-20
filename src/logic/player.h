@@ -6,7 +6,7 @@
 #include "logic/command.h"
 #include "logic/types.h"
 
-namespace landgrab {
+namespace kingdom_fight {
 
 struct Player {
     PlayerId id = 0;
@@ -22,4 +22,4 @@ struct Player {
     std::vector<Command> pending_orders;
 };
 
-}  // namespace landgrab
+}  // namespace kingdom_fight

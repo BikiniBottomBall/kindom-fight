@@ -4,7 +4,7 @@
 #include <cstddef>
 #include <utility>
 
-namespace landgrab {
+namespace kingdom_fight {
 namespace {
 
 Army starting_garrison() {
@@ -324,4 +324,4 @@ std::vector<Event> GameEngine::resolve_turn() {
     return {state_.log.begin() + static_cast<std::ptrdiff_t>(mark), state_.log.end()};
 }
 
-}  // namespace landgrab
+}  // namespace kingdom_fight

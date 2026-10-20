@@ -1,4 +1,4 @@
-# landgrab · 4 人混战抢地游戏（服务端优先）
+# kingdom_fight · 4 人混战抢地游戏（服务端优先）
 
 > 3-4 名领导者争夺 5 块领地：发育解锁卡牌，用卡牌运营军队，最后只有一人胜出。
 > **这是一个服务端项目，不是游戏客户端项目** —— 客户端只是壳（见 [ADR 0002](docs/adr/0002-godot-client.md)）。
@@ -42,7 +42,7 @@ powershell -ExecutionPolicy Bypass -File build.ps1 run    # 编译并跑 demo
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build -j
 ctest --test-dir build --output-on-failure
-./build/landgrab
+./build/kingdom_fight
 ```
 
 ## 目录

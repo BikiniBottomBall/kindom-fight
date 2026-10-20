@@ -77,14 +77,14 @@ function Invoke-Build {
 
     # 2) demo executable
     $mainObject = Invoke-Compile 'src/main.cpp'
-    $demoExe = Invoke-Link ($coreObjects + $mainObject) 'landgrab.exe'
+    $demoExe = Invoke-Link ($coreObjects + $mainObject) 'kingdom_fight.exe'
 
     # 3) unit test executable
     $testObjects = @()
     foreach ($src in (Get-CppSources 'tests')) {
         $testObjects += Invoke-Compile $src
     }
-    $testExe = Invoke-Link ($coreObjects + $testObjects) 'landgrab_tests.exe'
+    $testExe = Invoke-Link ($coreObjects + $testObjects) 'kingdom_fight_tests.exe'
 
     Write-Host ''
     Write-Host 'build ok:'

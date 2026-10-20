@@ -2,7 +2,7 @@
 
 #include <cassert>
 
-namespace landgrab {
+namespace kingdom_fight {
 namespace {
 
 using enum CardKind;
@@ -43,4 +43,4 @@ const char* to_string(CardKind kind) {
     return "未知";
 }
 
-}  // namespace landgrab
+}  // namespace kingdom_fight

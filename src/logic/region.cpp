@@ -2,7 +2,7 @@
 
 #include <cassert>
 
-namespace landgrab {
+namespace kingdom_fight {
 namespace {
 
 //                       名称      金币  兵源
@@ -44,4 +44,4 @@ bool adjacent(RegionId lhs, RegionId rhs) {
     return false;
 }
 
-}  // namespace landgrab
+}  // namespace kingdom_fight

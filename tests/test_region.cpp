@@ -3,11 +3,11 @@
 #include "logic/region.h"
 #include "test_framework.h"
 
-using landgrab::adjacent;
-using landgrab::kRegionCount;
-using landgrab::neighbors;
-using landgrab::region_spec;
-using landgrab::RegionId;
+using kingdom_fight::adjacent;
+using kingdom_fight::kRegionCount;
+using kingdom_fight::neighbors;
+using kingdom_fight::region_spec;
+using kingdom_fight::RegionId;
 
 TEST(RegionCountIsFive) { CHECK_EQ(kRegionCount, 5); }
 

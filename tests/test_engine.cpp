@@ -5,7 +5,7 @@
 #include "logic/engine.h"
 #include "test_framework.h"
 
-using namespace landgrab;
+using namespace kingdom_fight;
 
 namespace {
 

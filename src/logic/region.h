@@ -9,7 +9,7 @@
 
 #include "logic/types.h"
 
-namespace landgrab {
+namespace kingdom_fight {
 
 inline constexpr int kRegionCount = 5;
 
@@ -35,4 +35,4 @@ struct Region {
     int building_level = 0;  // 0 = 无，>0 表示建筑等级（S3）
 };
 
-}  // namespace landgrab
+}  // namespace kingdom_fight

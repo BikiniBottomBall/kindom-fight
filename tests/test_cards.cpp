@@ -4,9 +4,9 @@
 #include "logic/card_def.h"
 #include "test_framework.h"
 
-using landgrab::card_def;
-using landgrab::CardKind;
-using landgrab::kCardCatalogSize;
+using kingdom_fight::card_def;
+using kingdom_fight::CardKind;
+using kingdom_fight::kCardCatalogSize;
 
 TEST(CardCatalogHasTwelveCards) { CHECK_EQ(kCardCatalogSize, 12); }
 

@@ -7,11 +7,11 @@
 #include "logic/engine.h"
 #include "logic/event.h"
 
-namespace landgrab {
+namespace kingdom_fight {
 
 void print_game_state(const GameState& state);
 void print_event(const Event& event);
 void print_events(const std::vector<Event>& events);
 void print_event_summary(const std::vector<Event>& log);
 
-}  // namespace landgrab
+}  // namespace kingdom_fight

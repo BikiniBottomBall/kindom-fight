@@ -22,7 +22,7 @@
 #include "logic/player.h"
 #include "logic/region.h"
 
-namespace landgrab {
+namespace kingdom_fight {
 
 enum class Phase : int {
     WaitingForOrders = 0,  // 收指令中
@@ -82,4 +82,4 @@ private:
     Rng rng_;
 };
 
-}  // namespace landgrab
+}  // namespace kingdom_fight

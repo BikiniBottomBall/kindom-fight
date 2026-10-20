@@ -1,7 +1,7 @@
 #include "common/rng.h"
 #include "test_framework.h"
 
-using landgrab::Rng;
+using kingdom_fight::Rng;
 
 TEST(RngSameSeedSameSequence) {
     Rng a(42);

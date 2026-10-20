@@ -6,7 +6,7 @@
 
 #include "logic/types.h"
 
-namespace landgrab {
+namespace kingdom_fight {
 
 enum class CardKind : int { Unit = 0, Tactic, Economy, Scheme };
 inline constexpr int kCardKindCount = 4;
@@ -35,4 +35,4 @@ struct DeckState {
     [[nodiscard]] int pile_size() const { return static_cast<int>(draw_pile.size()); }
 };
 
-}  // namespace landgrab
+}  // namespace kingdom_fight

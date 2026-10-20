@@ -6,7 +6,7 @@
 #include "logic/command.h"
 #include "logic/region.h"
 
-namespace landgrab {
+namespace kingdom_fight {
 namespace {
 
 std::string player_tag(PlayerId id) {
@@ -135,4 +135,4 @@ std::string Event::describe() const {
     return "[未知事件]";
 }
 
-}  // namespace landgrab
+}  // namespace kingdom_fight

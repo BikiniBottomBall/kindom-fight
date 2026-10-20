@@ -21,4 +21,4 @@ jobs:
         run: ctest --test-dir build --output-on-failure
 
       - name: Smoke run
-        run: ./build/landgrab | tail -n 20
+        run: ./build/kingdom_fight | tail -n 20

@@ -1,6 +1,6 @@
 #include "logic/types.h"
 
-namespace landgrab {
+namespace kingdom_fight {
 
 const char* to_string(UnitType type) {
     switch (type) {
@@ -27,4 +27,4 @@ int counter_percent(UnitType attacker, UnitType defender) {
     return 100;
 }
 
-}  // namespace landgrab
+}  // namespace kingdom_fight

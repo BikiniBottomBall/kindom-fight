@@ -19,7 +19,7 @@ int main() {
     SetConsoleOutputCP(CP_UTF8);
 #endif
 
-    using namespace landgrab;
+    using namespace kingdom_fight;
 
     GameConfig cfg{};
     constexpr std::uint64_t kSeed = 20240101ull;
