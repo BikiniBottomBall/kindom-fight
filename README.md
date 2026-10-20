@@ -83,6 +83,29 @@ docs/             设计稿、路线图、步骤清单、ADR
 - [ADR 0001 不引入游戏引擎](docs/adr/0001-no-game-engine.md) —— 自研边界
 - [ADR 0002 客户端用 Godot 4.5](docs/adr/0002-godot-client.md) —— 为什么可以、代价与护栏
 
+## 密钥与安全（硬约束）
+
+**任何 API Key / Token / 私钥都不许进这个仓库，包括历史提交。**
+
+- 本项目当前**不调用任何外部 API**（AI 是本地启发式代码，不是大模型），所以仓库里不需要任何密钥。
+- 将来如果要接入大模型（例如用 LLM 当对手），密钥只能放环境变量或未跟踪的 `.env`：
+
+  ```powershell
+  setx DEEPSEEK_API_KEY "..."   # 只存在本机环境变量里，不要写进任何文件
+  ```
+
+两道防线：
+
+1. `.gitignore` 已屏蔽 `.env` / `.env.*` / `*.key` / `*.pem` / `secrets.*` / `credentials.*` 等。
+2. `.githooks/pre-commit` 会扫描**暂存区新增行**，发现 `sk-…`、`DEEPSEEK_API_KEY`、私钥头等样式就直接拒绝提交。
+   每台机器启用一次：
+
+   ```powershell
+   git config core.hooksPath .githooks
+   ```
+
+已经进过历史的密钥无法靠删除文件消除（`git log` 里还在），必须用 `git filter-repo` 重写历史并**立刻在服务商后台吊销那把 key**。所以防线要放在提交前，而不是提交后。
+
 ## 三条执行纪律
 
 1. **逻辑先于网络，网络先于界面。** S7（确定性）没过不许碰网络层，S10（终端能玩）没过不许碰 Godot。

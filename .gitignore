@@ -3,6 +3,20 @@ build/
 out/
 cmake-build-*/
 *.o
+
+# ---- 密钥 / 凭据：绝对不要进仓库 ----
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+secrets.*
+credentials.*
+config.local.*
+*.local
+# 各平台/工具的凭据目录
+.aws/
+.netrc
 *.obj
 *.exe
 *.pdb

@@ -1,0 +1,34 @@
+#!/bin/sh
+# Reject commits that look like they contain an API key or a private key.
+#
+# Enable once per clone:
+#     git config core.hooksPath .githooks
+#
+# Only ADDED lines in the staged diff are inspected, so existing history is
+# unaffected.
+#
+# The patterns below match *values*, not variable names. That is deliberate:
+# a doc may legitimately say "use the env var DEEPSEEK_API_KEY", but a real
+# key value must never be staged. It also keeps this file from matching itself.
+#
+# False positive (e.g. a doc showing a sample key)? Rewrite the sample, or
+# bypass once with: git commit --no-verify
+
+pattern='(sk|rk)-[A-Za-z0-9_-]{16,}|(DEEPSEEK|OPENAI|ANTHROPIC|GEMINI)_API_KEY[[:space:]]*[:=][[:space:]]*[A-Za-z0-9_-]{16,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|Bearer[[:space:]]+[A-Za-z0-9._-]{16,}'
+
+hits=$(git diff --cached -U0 --diff-filter=ACM | grep -E "^\+" | grep -E "$pattern" || true)
+
+if [ -n "$hits" ]; then
+    echo "=============================================================="
+    echo " COMMIT REJECTED: possible secret in staged changes"
+    echo "=============================================================="
+    echo "$hits" | head -n 10
+    echo ""
+    echo " Never hardcode keys. Keep them in an untracked .env file,"
+    echo " or in an environment variable set outside the repo."
+    echo " If this is a confirmed false positive:"
+    echo "   git commit --no-verify"
+    exit 1
+fi
+
+exit 0
