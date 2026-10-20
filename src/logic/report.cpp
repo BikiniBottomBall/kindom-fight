@@ -11,7 +11,7 @@ namespace {
 
 std::string owner_tag(PlayerId id) {
     if (id == kNeutralOwner) {
-        return "无主";
+        return "中立";
     }
     return "P" + std::to_string(id);
 }
@@ -29,6 +29,18 @@ std::string army_text(const Army& army) {
     return s;
 }
 
+std::string hand_text(const DeckState& deck) {
+    if (deck.hand.empty()) {
+        return "（空）";
+    }
+    std::string s;
+    for (const int card : deck.hand) {
+        s += card_def(card).name;
+        s += ' ';
+    }
+    return s;
+}
+
 }  // namespace
 
 void print_game_state(const GameState& state) {
@@ -41,7 +53,7 @@ void print_game_state(const GameState& state) {
     std::printf("\n[领地]\n");
     for (const Region& region : state.regions) {
         const RegionSpec& spec = region_spec(region.id);
-        std::printf("  %d %-8s 归属 %-4s 驻军 %-22s 产出 金%d 兵%d  建筑 Lv%d\n", region.id,
+        std::printf("  %d %-6s 归属 %-4s 驻军 %-20s 产出 金%d 招募上限%d  建筑 Lv%d\n", region.id,
                     std::string(spec.name).c_str(), owner_tag(region.owner).c_str(),
                     army_text(region.garrison).c_str(), spec.gold_yield, spec.troop_yield,
                     region.building_level);
@@ -58,10 +70,15 @@ void print_game_state(const GameState& state) {
                 troops += region.garrison.total();
             }
         }
-        std::printf("  P%d %s 金币 %-3d AP %d 手牌 %d 牌库 %d 领地 %d 兵力 %-4d 分数 %d\n", player.id,
-                    player.alive ? "存活" : "出局", player.gold, player.ap,
-                    player.deck.hand_size(), player.deck.pile_size(), owned, troops,
-                    owned * 3 + troops * 2 + player.gold);
+        std::printf("  P%d %s 金币 %-3d AP %d 牌库 %d 领地 %d 兵力 %-3d 分数 %d\n", player.id,
+                    player.alive ? "存活" : "出局", player.gold, player.ap, player.deck.pile_size(),
+                    owned, troops, owned * 3 + troops * 2 + player.gold);
+    }
+
+    std::printf("\n[手牌]\n");
+    for (int i = 0; i < state.player_count; ++i) {
+        const Player& player = state.players[static_cast<std::size_t>(i)];
+        std::printf("  P%d  %s\n", player.id, hand_text(player.deck).c_str());
     }
     std::printf("\n");
 }
@@ -76,8 +93,7 @@ void print_events(const std::vector<Event>& events) {
 
 void print_event_summary(const std::vector<Event>& log) {
     std::printf("[事件统计] 共 %zu 条\n", log.size());
-    constexpr int kTypeCount = static_cast<int>(EventType::GameOver) + 1;
-    for (int t = 0; t < kTypeCount; ++t) {
+    for (int t = 0; t < kEventTypeCount; ++t) {
         int count = 0;
         for (const Event& event : log) {
             if (static_cast<int>(event.type) == t) {

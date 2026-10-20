@@ -8,17 +8,22 @@
 
 namespace kingdom_fight {
 
-enum class CardKind : int { Unit = 0, Tactic, Economy, Scheme };
+enum class CardKind : int {
+    Unit = 0,
+    Tactic,
+    Economy,
+    Scheme,  // 阴谋卡：MVP 阶段故意不用（最容易失衡的一类），枚举位先留着
+};
 inline constexpr int kCardKindCount = 4;
 
-// MVP 12 张（见 docs/02-game-design.md）
-inline constexpr int kCardCatalogSize = 12;
+// MVP 10 张（设计稿 v0.2：砍掉阴谋卡）
+inline constexpr int kCardCatalogSize = 10;
 
 struct CardDef {
     std::string_view name;
     CardKind kind = CardKind::Unit;
-    int cost = 1;    // 购买/建造花费（金币）
-    int power = 0;   // 通用强度：战术卡=加成%，经济卡=产出，阴谋卡=扣金
+    int cost = 0;    // 金币花费；战术卡为 0（手牌本身就是资源，打出去即消耗）
+    int power = 0;   // 战术卡 = 战力加成百分比；经济卡 = 预留参数
     UnitType unit = UnitType::Spear;  // 仅兵种卡有意义
 };
 

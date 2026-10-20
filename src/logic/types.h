@@ -43,6 +43,42 @@ struct Army {
         return *this;
     }
 
+    Army& operator-=(const Army& other) {
+        for (int i = 0; i < kUnitTypeCount; ++i) {
+            count[i] -= other.count[i];
+            if (count[i] < 0) {
+                count[i] = 0;
+            }
+        }
+        return *this;
+    }
+
+    [[nodiscard]] bool empty() const { return total() == 0; }
+
+    // 从本军队抽走 amount 兵，返回抽走的部队。
+    // 抽取顺序固定为 长枪 → 盾卫 → 骑手 —— 顺序一旦不固定，同样的指令就会产出
+    // 不同的结果，决定论就没了。
+    Army take(int amount) {
+        Army taken;
+        int left = amount;
+        for (int t = 0; t < kUnitTypeCount && left > 0; ++t) {
+            const int n = (count[t] < left) ? count[t] : left;
+            taken.count[t] = n;
+            count[t] -= n;
+            left -= n;
+        }
+        return taken;
+    }
+
+    // 按百分比缩水（向下取整）
+    [[nodiscard]] Army scaled(int percent) const {
+        Army out;
+        for (int t = 0; t < kUnitTypeCount; ++t) {
+            out.count[t] = count[t] * percent / 100;
+        }
+        return out;
+    }
+
     friend bool operator==(const Army& lhs, const Army& rhs) { return lhs.count == rhs.count; }
     friend bool operator!=(const Army& lhs, const Army& rhs) { return !(lhs == rhs); }
 };

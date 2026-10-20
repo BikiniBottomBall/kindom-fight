@@ -20,15 +20,17 @@ else()
     target_compile_options(kingdom_fight_warnings INTERFACE -Wall -Wextra -Wpedantic -Wshadow)
 endif()
 
-# --- 核心库：纯逻辑，零网络、零数据库、零线程 -----------------------------
+# --- 核心库：纯逻辑 + AI，零网络、零数据库、零线程 -------------------------
 add_library(kingdom_fight_core STATIC
     src/logic/types.cpp
     src/logic/region.cpp
     src/logic/card_def.cpp
     src/logic/command.cpp
+    src/logic/combat.cpp
     src/logic/event.cpp
     src/logic/engine.cpp
     src/logic/report.cpp
+    src/ai/simple_ai.cpp
 )
 target_include_directories(kingdom_fight_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(kingdom_fight_core PRIVATE kingdom_fight_warnings)
@@ -45,6 +47,7 @@ add_executable(kingdom_fight_tests
     tests/test_rng.cpp
     tests/test_region.cpp
     tests/test_cards.cpp
+    tests/test_combat.cpp
     tests/test_engine.cpp
 )
 target_include_directories(kingdom_fight_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)

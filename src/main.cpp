@@ -1,6 +1,6 @@
-// S2 demo：打印初始局面 → 12 回合空转 → 打印最终局面与事件统计。
+// demo：4 个 AI 打完整局，打印战报与最终局面。
 //
-// 这个 main 是临时的验证壳。S10 会用真正的终端客户端（client/cli/）替掉它。
+// 这是临时的验证壳：S10 会用真正的终端客户端（client/cli/）替掉它。
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
@@ -9,14 +9,14 @@
 
 #include <cstdio>
 
+#include "ai/simple_ai.h"
 #include "common/config.h"
 #include "logic/engine.h"
 #include "logic/report.h"
 
 int main() {
 #ifdef _WIN32
-    // 让 Windows 控制台按 UTF-8 显示中文
-    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleOutputCP(CP_UTF8);  // 让 Windows 控制台按 UTF-8 显示中文
 #endif
 
     using namespace kingdom_fight;
@@ -28,13 +28,12 @@ int main() {
     std::printf("========== 初始局面 ==========\n");
     print_game_state(engine.state());
 
-    std::printf("========== 12 回合空转 ==========\n");
+    std::printf("========== 对局（4 个 AI） ==========\n");
     for (int t = 0; t < cfg.max_turns; ++t) {
         for (PlayerId p = 0; p < engine.state().player_count; ++p) {
-            engine.submit(p, {});  // 全部略过：这一步只验证回合循环不崩、事件可打印
+            engine.submit(p, ai::make_orders(engine, p));
         }
-        const auto events = engine.resolve_turn();
-        print_events(events);
+        print_events(engine.resolve_turn());
         if (engine.state().phase == Phase::Finished) {
             break;
         }

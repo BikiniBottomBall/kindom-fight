@@ -26,6 +26,20 @@ inline constexpr int kStartRider = 3;
 // 胜利条件：控制多少块领地立即获胜
 inline constexpr int kWinRegions = 3;
 
+// ---- 经济（S3）----
+inline constexpr int kBuildCost = 4;           // 建造一次的花费
+inline constexpr int kBuildMaxLevel = 2;       // 每块领地建筑等级上限，每级 +1 金币产出
+inline constexpr int kRecruitCostPerUnit = 1;  // 每招募 1 兵的花费
+inline constexpr int kNeutralGarrison = 8;     // 中立领地（中枢）的民兵总量
+inline constexpr int kDrawPerTurn = 1;         // 每回合抽牌数
+inline constexpr int kHandLimit = 5;           // 手牌上限
+
+// ---- 战斗（S5）----
+// 胜方伤亡百分比 = 败方战力 / 胜方战力 × 本系数，再夹到 [kMin, kMax] 之间
+inline constexpr int kCasualtyFactor = 50;
+inline constexpr int kMinCasualtyPercent = 5;
+inline constexpr int kMaxCasualtyPercent = 95;
+
 struct GameConfig {
     int max_turns = kMaxTurns;
     int starting_gold = kStartingGold;
