@@ -35,9 +35,13 @@ add_library(kingdom_fight_core STATIC
 target_include_directories(kingdom_fight_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(kingdom_fight_core PRIVATE kingdom_fight_warnings)
 
-# --- demo ----------------------------------------------------------------
+# --- AI 自动对局 demo -----------------------------------------------------
 add_executable(kingdom_fight src/main.cpp)
 target_link_libraries(kingdom_fight PRIVATE kingdom_fight_core kingdom_fight_warnings)
+
+# --- S10 终端客户端：你 vs AI ---------------------------------------------
+add_executable(kingdom_fight_cli client/cli/main.cpp)
+target_link_libraries(kingdom_fight_cli PRIVATE kingdom_fight_core kingdom_fight_warnings)
 
 # --- 单元测试 ------------------------------------------------------------
 enable_testing()

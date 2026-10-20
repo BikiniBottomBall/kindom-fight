@@ -474,3 +474,33 @@ TEST(AiNeverCommitsItsWholeGarrison) {
         CHECK(garrison_of(engine, 0).total() >= 1);
     }
 }
+
+TEST(ActionPointsAreReadyForTheUpcomingTurn) {
+    // 踩过的坑：AP 原本在 begin_turn（结算开头）发放，于是玩家在提交指令时看到的是
+    // 上一回合剩下的 0 点，AI 也会隔一回合不动一次。
+    GameEngine engine(GameConfig{}, 4, 1);
+    CHECK_EQ(engine.state().players[0].ap, kApPerTurn);  // 开局就能动
+
+    Command build{};
+    build.type = OrderType::Build;
+    build.from = 0;
+    engine.submit(0, {build, build});  // 把 2 点花光
+    pass_all(engine, 4);
+    engine.resolve_turn();
+
+    // 结算结束后，下一回合的 AP 必须已经就位
+    CHECK_EQ(engine.state().players[0].ap, kApPerTurn);
+}
+
+TEST(AiSeesActionPointsEveryTurn) {
+    GameEngine engine(GameConfig{}, 4, 99);
+    for (int t = 0; t < 4 && engine.state().phase != Phase::Finished; ++t) {
+        for (PlayerId p = 0; p < 4; ++p) {
+            CHECK(engine.state().players[static_cast<std::size_t>(p)].ap > 0);
+        }
+        for (PlayerId p = 0; p < 4; ++p) {
+            engine.submit(p, ai::make_orders(engine, p));
+        }
+        engine.resolve_turn();
+    }
+}

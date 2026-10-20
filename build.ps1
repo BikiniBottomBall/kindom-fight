@@ -1,8 +1,9 @@
 # build.ps1 -- offline build script (no cmake on this machine, uses g++ directly)
 #
-#   powershell -ExecutionPolicy Bypass -File build.ps1          build demo + tests
+#   powershell -ExecutionPolicy Bypass -File build.ps1          build all targets
 #   powershell -ExecutionPolicy Bypass -File build.ps1 test     build and run unit tests
-#   powershell -ExecutionPolicy Bypass -File build.ps1 run      build and run demo
+#   powershell -ExecutionPolicy Bypass -File build.ps1 run      build and run the AI demo
+#   powershell -ExecutionPolicy Bypass -File build.ps1 play     build and play: you vs AI
 #   powershell -ExecutionPolicy Bypass -File build.ps1 clean    remove build/
 #
 # Toolchain: MSYS2 UCRT64 g++ 15.2 (already on PATH)
@@ -12,7 +13,7 @@
 # there is no BOM, which corrupts any non-ASCII byte and breaks parsing.
 
 param(
-    [ValidateSet('build', 'test', 'run', 'clean', 'all')]
+    [ValidateSet('build', 'test', 'run', 'play', 'clean', 'all')]
     [string]$Target = 'all'
 )
 
@@ -75,11 +76,18 @@ function Invoke-Build {
         $coreObjects += Invoke-Compile $src
     }
 
-    # 2) demo executable
+    # 2) AI demo
     $mainObject = Invoke-Compile 'src/main.cpp'
     $demoExe = Invoke-Link ($coreObjects + $mainObject) 'kingdom_fight.exe'
 
-    # 3) unit test executable
+    # 3) terminal client (S10): you vs AI
+    $cliExe = $null
+    if (Test-Path (Join-Path $root 'client/cli/main.cpp')) {
+        $cliObject = Invoke-Compile 'client/cli/main.cpp'
+        $cliExe = Invoke-Link ($coreObjects + $cliObject) 'kingdom_fight_cli.exe'
+    }
+
+    # 4) unit tests
     $testObjects = @()
     foreach ($src in (Get-CppSources 'tests')) {
         $testObjects += Invoke-Compile $src
@@ -89,8 +97,9 @@ function Invoke-Build {
     Write-Host ''
     Write-Host 'build ok:'
     Write-Host "  demo : $demoExe"
+    if ($cliExe) { Write-Host "  play : $cliExe" }
     Write-Host "  tests: $testExe"
-    return @{ Demo = $demoExe; Tests = $testExe }
+    return @{ Demo = $demoExe; Cli = $cliExe; Tests = $testExe }
 }
 
 function Invoke-Tests([string]$testExe) {
@@ -107,5 +116,6 @@ $products = Invoke-Build
 switch ($Target) {
     'test' { Invoke-Tests $products.Tests }
     'run'  { & $products.Demo }
-    'all'  { Invoke-Tests $products.Tests; Write-Host ''; & $products.Demo }
+    'play' { if ($products.Cli) { & $products.Cli } else { Write-Host 'client/cli/main.cpp not found' } }
+    'all'  { Invoke-Tests $products.Tests }
 }

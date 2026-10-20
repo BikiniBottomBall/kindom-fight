@@ -18,8 +18,8 @@ C++20 · 回合制 · 同时决策 · 服务端权威 · 本机离线可构建�
 | S6 | 占领 / 淘汰 / 胜负判定 | ✅ |
 | S7 | 确定性验证 | ✅ 同种子同指令 → 事件流逐字节一致 |
 | S8 | 战报（事件流 + 纯文本渲染） | ✅ |
-| S9 | AI（单机对手 / 补位 / 托管，一个模块三处复用） | 🟡 启发式版，够打完整局 |
-| S10 | 终端客户端（人工操作） | ⬜ 目前用 AI 自打验证 |
+| S9 | AI（单机对手 / 补位 / 托管，一个模块三处复用） | ✅ 启发式版，能打完整局 |
+| S10 | 终端客户端（人工操作） | ✅ `client/cli`，你 vs AI |
 | S11–S18 | 网络层（epoll / 协议 / 房间 / 重连） | ⬜ |
 
 **已知问题（下一步要解决的第一件事）**：4 个 AI 对局平均 **3 回合就结束**，而设计目标是 8–12 回合。
@@ -38,9 +38,10 @@ C++20 · 回合制 · 同时决策 · 服务端权威 · 本机离线可构建�
 本机没有 cmake，用 g++ 直接编译：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File build.ps1        # 编译 demo + 测试
+powershell -ExecutionPolicy Bypass -File build.ps1        # 编译全部目标
 powershell -ExecutionPolicy Bypass -File build.ps1 test   # 编译并跑单测
-powershell -ExecutionPolicy Bypass -File build.ps1 run    # 编译并跑 demo
+powershell -ExecutionPolicy Bypass -File build.ps1 run    # AI 自打一局（看战报）
+powershell -ExecutionPolicy Bypass -File build.ps1 play   # 你亲自打一局
 ```
 
 依赖：MSYS2 UCRT64 g++（已在本机 PATH 中）。无第三方库。
@@ -51,8 +52,31 @@ powershell -ExecutionPolicy Bypass -File build.ps1 run    # 编译并跑 demo
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build -j
 ctest --test-dir build --output-on-failure
-./build/kingdom_fight
+./build/kingdom_fight        # AI 自打
+./build/kingdom_fight_cli    # 你亲自打
 ```
+
+## 玩一局（终端客户端）
+
+```powershell
+.\build\bin\kingdom_fight_cli.exe              # 默认 4 人
+.\build\bin\kingdom_fight_cli.exe --seed 7     # 换一个牌序
+.\build\bin\kingdom_fight_cli.exe --players 2  # 2 人局
+```
+
+你是 P0，其他位置由 AI 补。每回合你有 2 点行动点：
+
+| 指令 | 作用 | 消耗 |
+|---|---|---|
+| `b <区域>` | 建造（4 金，等级 +1，每级 +1 金/回合，上限 2 级） | 1 AP |
+| `r <区域> <s\|h\|r> <数量>` | 招募（1 金/兵，受该区域招募上限限制） | 1 AP |
+| `m <起点> <终点> <数量>` | 调动（仅自己相邻的两块领地） | 1 AP |
+| `a <起点> <终点> <数量>` | 进攻（相邻的敌方/中立领地） | 1 AP |
+| `t <手牌序号> <区域>` | 暗置战术卡，该区域开战时给己方加战力 | 0 AP |
+| `c` / `done` / `help` / `quit` | 清空指令 / 提交结算 / 说明 / 退出 | — |
+
+结算阶段所有玩家**同时**生效：你先看到自己的指令被接受，然后一次性看到产出、建造、
+战术揭晓、战斗、占领的完整战报。
 
 ## 目录
 
@@ -62,18 +86,24 @@ src/
 ├── logic/        纯逻辑层：零网络、零数据库、零线程，可单测
 │   ├── types       兵种与军队（三角克制）
 │   ├── region      5 个区域 + 邻接表（节点图，不是格子）
-│   ├── card_def    12 张卡的数据驱动目录
+│   ├── card_def    10 张卡的数据驱动目录（兵种 / 战术 / 经济）
 │   ├── command     指令 = 玩家意图
 │   ├── event       事件 = 服务端判定后的事实（serialize/describe）
+│   ├── combat      确定性战斗公式（无骰子）
 │   ├── engine      同时决策的回合循环
 │   └── report      纯文本战报
-└── main.cpp      临时 demo（S10 会被 client/cli 替掉）
-tests/            35 个单测（自带极简框架，零依赖）
+├── ai/           simple_ai：一个模块三处复用（单机对手 / 补位 / 托管）
+└── main.cpp      AI 自打 demo
+client/cli/       终端客户端：你 vs AI（S10）
+tests/            66 个单测（自带极简框架，零依赖）
 docs/             设计稿、路线图、步骤清单、ADR
 ```
 
 **最重要的分层原则：`src/logic/` 不许 include 任何 IO / 线程 / 数据库头。**
 它能被单测、能被 AI 直接驱动、能在没有网络时反复试玩 —— 这是整个项目能做完的根本原因。
+
+客户端也只做两件事：**渲染状态** 和 **把人的意图翻译成 `Command`**。
+合法性判定全在引擎里——把 `client/` 整个删掉，服务端依然完全正确（ADR 0002 护栏二）。
 
 ## 设计文档
 
@@ -97,7 +127,9 @@ docs/             设计稿、路线图、步骤清单、ADR
 两道防线：
 
 1. `.gitignore` 已屏蔽 `.env` / `.env.*` / `*.key` / `*.pem` / `secrets.*` / `credentials.*` 等。
-2. `.githooks/pre-commit` 会扫描**暂存区新增行**，发现 `sk-…`、`DEEPSEEK_API_KEY`、私钥头等样式就直接拒绝提交。
+2. `.githooks/pre-commit` 会扫描**暂存区新增行**，命中的是"变量名 + 真实值"的形式
+   （`sk-…`、`DEEPSEEK_API_KEY=<16 位以上>`、`Bearer <token>`、私钥头）。
+   只写变量名不会误报——文档里提名字是正常的，值不行。
    每台机器启用一次：
 
    ```powershell

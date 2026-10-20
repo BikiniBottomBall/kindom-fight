@@ -263,7 +263,7 @@ void GameEngine::begin_turn() {
             p.pending_orders.clear();
             p.submitted = true;
         }
-        p.ap = state_.cfg.ap_per_turn;
+        // 注意：这里不重置 AP。行动点是"为下回合准备"的 —— 见 end_turn()。
         for (int d = 0; d < kDrawPerTurn; ++d) {
             draw_card(p);
         }
@@ -693,6 +693,12 @@ void GameEngine::end_turn() {
         Player& p = state_.players[static_cast<std::size_t>(i)];
         p.pending_orders.clear();
         p.submitted = false;
+        // 行动点在这里发放：结算结束时，玩家拿到的就是"下一回合可用"的 AP。
+        // 如果放在 begin_turn（结算开头）发，玩家在提交指令时看到的是上一回合剩下的 0 点，
+        // 界面会误导人，AI 也会隔一回合不动一次（真实踩过的坑）。
+        if (p.alive) {
+            p.ap = state_.cfg.ap_per_turn;
+        }
     }
 }
 
