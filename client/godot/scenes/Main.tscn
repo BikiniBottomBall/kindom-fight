@@ -1,0 +1,48 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
+
+[node name="Main" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_main")
+
+[node name="EditorPlaceholder" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Background" type="ColorRect" parent="EditorPlaceholder"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.027451, 0.0392157, 0.0705882, 1)
+
+[node name="Hint" type="Label" parent="EditorPlaceholder"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(0.721569, 0.8, 0.95, 1)
+theme_override_font_sizes/font_size = 30
+text = "kingdom_fight —— 表现层
+
+编辑器里看到的是这张占位图：
+战场、HUD、开始页、构筑界面全部由 main.gd 在运行时绘制，编辑器不执行脚本。
+
+按 F5 运行；或者双击仓库根目录的 run-demo.cmd（它会先在 WSL 里起服务端）。"
+horizontal_alignment = 1
+vertical_alignment = 1

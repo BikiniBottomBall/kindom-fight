@@ -1,0 +1,23 @@
+# 跨语言协议契约向量 —— C++ 与 GDScript 共读这一份。
+#
+#   C++ 侧：tests/test_golden_protocol.cpp
+#   GDScript 侧：client/godot/tests/test_decoder.gd
+#
+# 帧格式（大端序，头 13 字节）：
+#   magic(2) | version(1) | cmd(2) | seq(4) | payload_len(4) | payload(N)
+#
+# 格式（每行一例，字段用 | 分隔，前后空白会被忽略）：
+#   name | hex | cmd | seq | payload_hex      → 期望解出 1 帧；payload 用 "-" 表示空
+#   !name | hex                              → 期望判协议违规，且不得产出任何帧
+#
+# 改这里 = 改线上协议。必须同时改 src/net/protocol.h 和 kf_protocol.gd。
+
+ping_empty      | 4b460100010000000000000000         | 1  | 0          | -
+echo_aabb       | 4b4601005a0000000700000002aabb     | 90 | 7          | aabb
+pong_deadbeef   | 4b46010002deadbeef00000000         | 2  | 3735928559 | -
+echo_hello      | 4b4601005a000000010000000568656c6c6f | 90 | 1          | 68656c6c6f
+echoack_maxseq  | 4b4601005bffffffff00000000         | 91 | 4294967295 | -
+
+!bad_magic      | 4b440100010000000000000000
+!bad_version    | 4b46ff00010000000000000000
+!oversized      | 4b460100010000000000200000
