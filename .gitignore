@@ -49,3 +49,7 @@ Thumbs.db
 # 临时
 *.log
 *.tmp
+
+# Python 缓存（tools/*.py 会被直接跑）
+__pycache__/
+*.pyc

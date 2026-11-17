@@ -13,7 +13,7 @@
 # there is no BOM, which corrupts any non-ASCII byte and breaks parsing.
 
 param(
-    [ValidateSet('build', 'test', 'run', 'play', 'clean', 'all')]
+    [ValidateSet('build', 'test', 'run', 'play', 'clean', 'all', 'bench', 'serve')]
     [string]$Target = 'all'
 )
 
@@ -94,6 +94,18 @@ function Invoke-Build {
         $echoExe = Invoke-Link ($coreObjects + $echoObject) 'kingdom_fight_echo.exe'
     }
 
+    # 4b) RTS demo: authoritative server + AI-vs-AI bench
+    $serverExe = $null
+    if (Test-Path (Join-Path $root 'tools/rts_server.cpp')) {
+        $serverObject = Invoke-Compile 'tools/rts_server.cpp'
+        $serverExe = Invoke-Link ($coreObjects + $serverObject) 'kingdom_fight_server.exe'
+    }
+    $benchExe = $null
+    if (Test-Path (Join-Path $root 'tools/rts_bench.cpp')) {
+        $benchObject = Invoke-Compile 'tools/rts_bench.cpp'
+        $benchExe = Invoke-Link ($coreObjects + $benchObject) 'kingdom_fight_bench.exe'
+    }
+
     # 5) unit tests
     $testObjects = @()
     foreach ($src in (Get-CppSources 'tests')) {
@@ -106,8 +118,10 @@ function Invoke-Build {
     Write-Host "  demo : $demoExe"
     if ($cliExe) { Write-Host "  play : $cliExe" }
     if ($echoExe) { Write-Host "  echo : $echoExe" }
+    if ($serverExe) { Write-Host "  serve: $serverExe" }
+    if ($benchExe) { Write-Host "  bench: $benchExe" }
     Write-Host "  tests: $testExe"
-    return @{ Demo = $demoExe; Cli = $cliExe; Echo = $echoExe; Tests = $testExe }
+    return @{ Demo = $demoExe; Cli = $cliExe; Echo = $echoExe; Server = $serverExe; Bench = $benchExe; Tests = $testExe }
 }
 
 function Invoke-Tests([string]$testExe) {
@@ -125,5 +139,7 @@ switch ($Target) {
     'test' { Invoke-Tests $products.Tests }
     'run'  { & $products.Demo }
     'play' { if ($products.Cli) { & $products.Cli } else { Write-Host 'client/cli/main.cpp not found' } }
+    'bench' { if ($products.Bench) { & $products.Bench --matches 60 } }
+    'serve' { if ($products.Server) { & $products.Server } }
     'all'  { Invoke-Tests $products.Tests }
 }

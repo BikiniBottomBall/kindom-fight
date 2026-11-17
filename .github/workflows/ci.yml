@@ -5,6 +5,11 @@ on:
     branches: [main, master]
   pull_request:
 
+# 覆盖范围（按重要性）：
+#   1. 编译 + 128 个单测
+#   2. RTS 服务端真实 TCP 端到端（python 冒烟客户端，不需要 Godot）
+#   3. 节奏门禁 + 确定性回归（同种子跑两遍必须逐字节一致）
+#   4. 客户端 GDScript 协议测试（runner 上有 Godot 才真跑，否则明确 skip）
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
@@ -20,5 +25,58 @@ jobs:
       - name: Unit tests
         run: ctest --test-dir build --output-on-failure
 
-      - name: Smoke run
+      # 协议是**大端序**，而 Godot 的 PackedByteArray.decode_u16/u32/u64 默认小端、
+      # 没有大端变体。用错不会报错，只会静默错位（典型症状：界面上兵力显示 65536）。
+      # 客户端只允许走 KFProtocol._be16 / _be32 这两个入口。
+      # 只匹配真实调用 .decode_uXX(...)：kf_protocol.gd 的注释里提到了这些名字，
+      # 不能因为一句文档就把 CI 打红。
+      - name: Protocol contract (no little-endian decode in GDScript)
+        run: |
+          if grep -rn --include='*.gd' -E '\.decode_u(16|32|64)[ ]*\(' client/godot; then
+            echo "::error::协议是大端序，PackedByteArray.decode_u* 默认小端。请用 KFProtocol 的 _be16/_be32。"
+            exit 1
+          fi
+
+      # 真正把服务端跑起来，用 python 客户端连上去把协议走一遍：
+      # 帧头 / 卡池 / 地图 / 快照逐字段 / 领地掩码 / 兵种表 / 出牌回执。
+      # 这一步是"服务端还能不能开局"的唯一自动化证据（以前只有本地手点 Godot）。
+      - name: RTS server end-to-end (real TCP, no Godot)
+        run: |
+          ./build/kingdom_fight_server --port 9777 > /tmp/kf_server.log 2>&1 &
+          echo $! > /tmp/kf_server.pid
+          python3 - <<'PY'
+          import socket, sys, time
+          for _ in range(200):
+              try:
+                  socket.create_connection(("127.0.0.1", 9777), timeout=0.2).close()
+                  sys.exit(0)
+              except OSError:
+                  time.sleep(0.05)
+          sys.exit("服务端 10 秒内没起来")
+          PY
+          python3 tools/smoke_rts.py --port 9777 --seconds 20
+          kill "$(cat /tmp/kf_server.pid)" || true
+          echo '--- 服务端日志 ---'
+          tail -n 20 /tmp/kf_server.log
+
+      # 节奏门禁：只接"对局整体垮掉"这种回归（全在拖时长 / 全都超时）。
+      # 阈值故意留得很宽 —— 这是下限保险，平衡目标看 README 的数值基线。
+      - name: Balancing fence
+        run: ./build/kingdom_fight_bench --matches 12 --check
+
+      # 确定性是这项目的核心承诺（全整数 + 固定种子）。同种子跑两遍，
+      # 输出必须逐字节一致；一旦有人往模拟里塞了浮点/时间/随机源，这里立刻红。
+      - name: Determinism (same seed twice -> identical output)
+        run: |
+          ./build/kingdom_fight_bench --matches 4 > /tmp/bench_run1.txt
+          ./build/kingdom_fight_bench --matches 4 > /tmp/bench_run2.txt
+          diff -u /tmp/bench_run1.txt /tmp/bench_run2.txt
+          echo "同种子两次跑分完全一致"
+
+      # Godot 不在默认 runner 上。装了之后（或设 GODOT_BIN）这一条才会真跑；
+      # 没装时脚本会打印 [skip] 并 exit 0 —— 跳过不等于通过，日志里能看出来。
+      - name: Client protocol tests (Godot)
+        run: bash tools/run_godot_tests.sh
+
+      - name: Legacy turn-based demo smoke
         run: ./build/kingdom_fight | tail -n 20

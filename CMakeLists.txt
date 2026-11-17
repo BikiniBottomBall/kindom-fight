@@ -38,6 +38,11 @@ add_library(kingdom_fight_core STATIC
     src/net/poller_select.cpp
     src/net/poller_epoll.cpp
     src/net/channel.cpp
+    src/rts/cards.cpp
+    src/rts/terrain.cpp
+    src/rts/sim.cpp
+    src/rts/ai.cpp
+    src/rts/wire.cpp
 )
 target_include_directories(kingdom_fight_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(kingdom_fight_core PRIVATE kingdom_fight_warnings)
@@ -57,6 +62,13 @@ target_link_libraries(kingdom_fight_cli PRIVATE kingdom_fight_core kingdom_fight
 add_executable(kingdom_fight_echo tools/echo_server.cpp)
 target_link_libraries(kingdom_fight_echo PRIVATE kingdom_fight_core kingdom_fight_warnings)
 
+# --- RTS demo：权威服务端 + AI 自动对局统计 -------------------------------
+add_executable(kingdom_fight_server tools/rts_server.cpp)
+target_link_libraries(kingdom_fight_server PRIVATE kingdom_fight_core kingdom_fight_warnings)
+
+add_executable(kingdom_fight_bench tools/rts_bench.cpp)
+target_link_libraries(kingdom_fight_bench PRIVATE kingdom_fight_core kingdom_fight_warnings)
+
 # --- 单元测试 ------------------------------------------------------------
 enable_testing()
 add_executable(kingdom_fight_tests
@@ -67,7 +79,11 @@ add_executable(kingdom_fight_tests
     tests/test_cards.cpp
     tests/test_combat.cpp
     tests/test_protocol.cpp
+    tests/test_golden_protocol.cpp
     tests/test_engine.cpp
+    tests/test_rts_sim.cpp
+    tests/test_rts_wire.cpp
+    tests/test_terrain.cpp
 )
 target_include_directories(kingdom_fight_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
 target_link_libraries(kingdom_fight_tests PRIVATE kingdom_fight_core kingdom_fight_warnings)
