@@ -1,12 +1,16 @@
-# demo.ps1 -- start the C++ server in WSL, then launch the Godot client.
+# demo.ps1 -- build (if needed) and start the C++ server on this machine, then launch
+#             the Godot client.
 #
 #   .\demo.ps1
-#   .\demo.ps1 -Godot "C:\path\to\godot.exe"
-#   .\demo.ps1 -Port 9701
+#   .\demo.ps1 -AiLevel hard
+#   .\demo.ps1 -Godot "C:\path\to\godot.exe" -Port 9701
 #
-# Why the server runs in WSL: this machine enforces Device Guard, which blocks
-# freshly built unsigned exes ("Application Control policy has blocked this file").
-# Linux binaries are not affected by that policy.
+# History: this used to run the server inside WSL, because Device Guard on this
+# machine refused to execute freshly built unsigned exes ("Application Control
+# policy has blocked this file"). That is no longer true -- the Windows build
+# runs fine (verified 2026-11-17, poller=select), so the default path is now
+# native Windows and starts in ~2 seconds instead of ~40.
+# WSL is still supported:  .\demo.ps1 -Wsl
 #
 # NOTE: keep this file ASCII-only. Windows PowerShell 5.1 reads .ps1 as ANSI when
 # there is no BOM, which corrupts any non-ASCII byte and breaks parsing -- and a
@@ -15,88 +19,75 @@ param(
     [int]$Port = 9700,
     [ValidateSet("easy", "normal", "hard")]
     [string]$AiLevel = "normal",
-    [string]$Godot = "D:\steam\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe"
+    [string]$Godot = "D:\steam\steamapps\common\Godot Engine\godot.windows.opt.tools.64.exe",
+    [switch]$Fast,
+    [switch]$Wsl
 )
 
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
+$serverExe = Join-Path $root 'build\bin\kingdom_fight_server.exe'
+$buildScript = Join-Path $root 'build.ps1'
 
-if (-not (Test-Path $Godot)) {
-    Write-Host "Godot not found: $Godot" -ForegroundColor Red
-    Write-Host "Pass it explicitly: .\demo.ps1 -Godot <path-to-godot.exe>" -ForegroundColor Yellow
+function Fail([string]$message) {
+    Write-Host $message -ForegroundColor Red
     exit 1
 }
 
-# D:\Code\... -> /mnt/d/Code/...
-$wslPath = "/mnt/" + $root.Substring(0, 1).ToLower() + $root.Substring(2).Replace('\', '/')
-
-Write-Host "[demo] project (WSL): $wslPath" -ForegroundColor DarkGray
-Write-Host "[demo] building + starting the server in WSL..." -ForegroundColor Cyan
-
-$serverJob = Start-Job -ScriptBlock {
-    param($path, $port, $level)
-    wsl bash -lc "cd '$path' && ./tools/serve_wsl.sh $port $level"
-} -ArgumentList $wslPath, $Port, $AiLevel
-
-# Fast port probe: Test-NetConnection costs hundreds of ms per call.
-function Test-TcpPort([int]$TargetPort) {
-    $client = New-Object System.Net.Sockets.TcpClient
-    try {
-        $task = $client.ConnectAsync('127.0.0.1', $TargetPort)
-        if ($task.Wait(300) -and $client.Connected) { return $true }
-        return $false
-    } catch {
-        return $false
-    } finally {
-        $client.Dispose()
-    }
+if (-not (Test-Path $Godot)) {
+    Fail "Godot not found: $Godot`nPass it explicitly: .\demo.ps1 -Godot <path-to-godot.exe>"
 }
 
-# First build takes 10-20s; after that the binary is up to date and it starts in ~1s.
+# ---- 1) server: build if missing, then start it ---------------------------
+$serverArgs = @("--port", "$Port", "--ai-level", $AiLevel)
+if ($Fast) { $serverArgs += "--fast" }
+
+if ($Wsl) {
+    # Legacy path: build + run inside WSL (uses the real epoll backend).
+    $wslPath = "/mnt/" + $root.Substring(0, 1).ToLower() + $root.Substring(2).Replace('\', '/')
+    Write-Host "[demo] server in WSL: $wslPath" -ForegroundColor DarkGray
+    $server = Start-Process -FilePath "wsl" `
+        -ArgumentList @("bash", "-lc", "cd '$wslPath' && ./tools/serve_wsl.sh $Port $AiLevel") `
+        -PassThru -NoNewWindow
+} else {
+    if (-not (Test-Path $serverExe)) {
+        Write-Host "[demo] server binary missing -- building (first time takes ~1-2 min)..." -ForegroundColor Cyan
+        & powershell -NoProfile -ExecutionPolicy Bypass -File $buildScript build
+        if (-not (Test-Path $serverExe)) { Fail "[demo] build did not produce $serverExe" }
+    }
+    Write-Host "[demo] server: $serverExe $($serverArgs -join ' ')" -ForegroundColor DarkGray
+    $server = Start-Process -FilePath $serverExe -ArgumentList $serverArgs -PassThru -NoNewWindow
+}
+
+# ---- 2) wait for the port to accept connections ---------------------------
 $ready = $false
-for ($i = 0; $i -lt 200; $i++) {
-    Start-Sleep -Milliseconds 300
-    if (Test-TcpPort $Port) { $ready = $true; break }
+for ($i = 0; $i -lt 100; $i++) {
+    if ($server.HasExited) { break }
+    try {
+        $probe = New-Object System.Net.Sockets.TcpClient
+        $probe.Connect('127.0.0.1', $Port)
+        $probe.Close()
+        $ready = $true
+        break
+    } catch {
+        Start-Sleep -Milliseconds 100
+    }
 }
 
 if (-not $ready) {
-    Write-Host "[demo] server did not come up. last log lines:" -ForegroundColor Red
-    Receive-Job $serverJob
-    Stop-Job $serverJob -ErrorAction SilentlyContinue
-    Remove-Job $serverJob -Force -ErrorAction SilentlyContinue
-    exit 1
+    if (-not $server.HasExited) { Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue }
+    Fail "[demo] server did not open port $Port. Check the error above (port already in use?)."
 }
-Write-Host "[demo] server ready on 127.0.0.1:$Port" -ForegroundColor Green
+Write-Host "[demo] server up on 127.0.0.1:$Port (ai=$AiLevel)" -ForegroundColor Green
 
+# ---- 3) client -----------------------------------------------------------
 try {
-    # Pass the port through: the client defaults to 9700, so if the server
-    # listens somewhere else the client would connect to the wrong place.
-    & $Godot --path "$root/client/godot" -- "--port=$Port"
+    Write-Host "[demo] launching Godot client..." -ForegroundColor Cyan
+    & $Godot --path (Join-Path $root 'client\godot') -- "--port=$Port"
 } finally {
-    # The Steam build detaches: this call can return before the game window
-    # even exists. Wait for the window to show up, then keep the server alive
-    # until it is gone -- otherwise the client lands on "not connected".
-    function Get-GameWindow {
-        # Match by process name only: MainWindowTitle can be empty depending on
-        # how the process was started, which made this wait exit immediately.
-        @(Get-Process | Where-Object { $_.ProcessName -like 'godot*' })
+    # Godot closed -> take the server down with it, so the next run is not blocked by a busy port
+    if (-not $server.HasExited) {
+        Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue
+        Write-Host "[demo] server stopped." -ForegroundColor DarkGray
     }
-
-    $appeared = $false
-    for ($i = 0; $i -lt 40; $i++) {
-        if ((Get-GameWindow).Count -gt 0) { $appeared = $true; break }
-        Start-Sleep -Seconds 1
-    }
-
-    if ($appeared) {
-        $deadline = (Get-Date).AddHours(8)
-        while ((Get-Date) -lt $deadline -and (Get-GameWindow).Count -gt 0) {
-            Start-Sleep -Seconds 2
-        }
-    }
-
-    Write-Host "[demo] stopping the server..." -ForegroundColor DarkGray
-    wsl -e pkill -f "kingdom_fight_server --port" 2>$null | Out-Null
-    Stop-Job $serverJob -ErrorAction SilentlyContinue
-    Remove-Job $serverJob -Force -ErrorAction SilentlyContinue
 }

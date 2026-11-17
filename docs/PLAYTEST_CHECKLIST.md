@@ -5,7 +5,7 @@
 ## 0. 自动化（必须全绿）
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File build.ps1 test                    # 128 个 C++ 单测（Windows）
+powershell -ExecutionPolicy Bypass -File build.ps1 test                    # 130 个 C++ 单测（Windows）
 wsl bash -lc "cd /mnt/d/Code/DSH/*Game* && ./build.sh test"                # 同上，WSL / Linux
 wsl bash -lc "cd /mnt/d/Code/DSH/*Game* && ./build.sh smoke"               # 服务端真实 TCP 端到端
 wsl bash -lc "cd /mnt/d/Code/DSH/*Game* && ./build.sh bench 12"            # 节奏跑分 + 门禁
@@ -14,7 +14,7 @@ bash tools/run_godot_tests.sh                                              # 客
 
 ## 1. 启动链路
 
-- [ ] 双击 `run-demo.cmd`：服务端先起、客户端 3 秒内连上
+- [ ] 双击 `run-demo.cmd`：服务端先起（本机 Windows，2 秒级）、客户端 3 秒内连上
 - [ ] 服务端没起时，客户端开始页显示「未连接服务端 · 正在重试」
 - [ ] 开始页四个阵营按钮点哪个，中间就列哪家的 10 张牌
 - [ ] 「开始游戏」→ 构筑界面 → 选 8 张 → 「开始对局」

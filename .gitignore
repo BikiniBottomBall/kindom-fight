@@ -50,6 +50,9 @@ Thumbs.db
 *.log
 *.tmp
 
+# 跟代码无关的素材（剧本 docx 之类），别混进仓库
+adapt/
+
 # Python 缓存（tools/*.py 会被直接跑）
 __pycache__/
 *.pyc

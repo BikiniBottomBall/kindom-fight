@@ -75,7 +75,9 @@ std::vector<int> ai_deck_for(Alliance alliance) {
 bool fast_mode = false;
 
 void print_usage() {
-    std::printf("用法：kingdom_fight_server [--port N] [--timeout 秒] [--no-ai] [--fast]\n");
+    std::printf(
+        "用法：kingdom_fight_server [--port N] [--timeout 秒] [--no-ai] [--fast]\n"
+        "                            [--ai-level easy|normal|hard]\n");
 }
 
 void send(wire::Msg msg, const std::string& payload, Client& client) {
@@ -151,9 +153,28 @@ int main(int argc, char** argv) {
             use_ai = false;
         } else if (arg == "--fast") {
             fast_mode = true;
+        } else if (arg == "--ai-level" && i + 1 < argc) {
+            // 以前这个参数没实现，未知参数又被静默忽略 —— demo.ps1 -AiLevel hard 其实是空转，
+            // 一直在跑 Normal。现在真接上，并且写错值直接报错。
+            const std::string level = argv[++i];
+            if (level == "easy") {
+                ai_level = AiLevel::Easy;
+            } else if (level == "normal") {
+                ai_level = AiLevel::Normal;
+            } else if (level == "hard") {
+                ai_level = AiLevel::Hard;
+            } else {
+                std::printf("[rts] 未知 AI 难度：%s（easy / normal / hard）\n", level.c_str());
+                return 2;
+            }
         } else if (arg == "--help") {
             print_usage();
             return 0;
+        } else {
+            // 别静默吞掉拼错的参数：宁可起不来，也别让人以为参数生效了
+            std::printf("[rts] 未知参数：%s\n", arg.c_str());
+            print_usage();
+            return 2;
         }
     }
 

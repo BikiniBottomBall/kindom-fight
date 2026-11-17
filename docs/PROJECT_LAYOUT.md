@@ -30,7 +30,7 @@ Cpp_Game_ Work/
 │  ├─ scripts/kf_net.gd     网络（收发帧、断线重连）
 │  ├─ assets/               **美术资源**：替换这里即可，见下
 │  └─ tests/                GDScript 协议测试
-├─ tests/                   C++ 单测（128 个，包含模拟/协议/地形/卡牌）
+├─ tests/                   C++ 单测（130 个，包含模拟/协议/地形/卡牌）
 ├─ docs/                    设计文档 + ADR + 截图
 ├─ build*/                  编译产物（已 gitignore）
 └─ run-demo.cmd / demo.ps1  一键启动（WSL 服务端 + Godot 客户端）
@@ -79,7 +79,7 @@ godot --path client/godot
 # 一键（服务端 + 客户端）
 .\run-demo.cmd
 
-# C++ 单测（128）
+# C++ 单测（130）
 powershell -ExecutionPolicy Bypass -File build.ps1 test        # Windows（MSYS2 g++，不需要 WSL）
 wsl bash -lc "cd /mnt/d/Code/DSH/*Game* && ./build.sh test"    # WSL / Linux
 

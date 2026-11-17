@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # 编译并启动 RTS 服务端（Linux / WSL）。
 #
-#   ./tools/serve_wsl.sh [port]
+#   ./tools/serve_wsl.sh [port] [easy|normal|hard]
 #
-# 为什么单独一个脚本：Windows 侧启用了 Device Guard，新编译的未签名 exe 会被拒绝执行，
-# 所以 demo 的服务端跑在 WSL 里；这个脚本负责"编译 + 启动"，让 demo.ps1 只调一行。
+# 现在默认不用它了：2026-11-17 复核过，Windows 本机直接跑服务端没问题
+# （所谓 Device Guard 拦未签名 exe 的说法已经过时），demo.ps1 默认走本机。
+# 这个脚本留着是因为 WSL 里跑的是真正的 epoll，要验那条路径时还得用它。
 set -euo pipefail
 
 PORT="${1:-9700}"
