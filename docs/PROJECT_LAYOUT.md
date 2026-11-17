@@ -89,7 +89,7 @@ wsl bash -lc "cd /mnt/d/Code/DSH/*Game* && ./build.sh smoke"
 # 客户端协议测试（51 + 56 项）
 bash tools/run_godot_tests.sh
 
-# 平衡/节奏跑分（12 局，带节奏门禁）
+# 平衡/节奏跑分（12 局，出厂节奏 + 门禁；加 --watch 看每局收官状态）
 wsl bash -lc "cd /mnt/d/Code/DSH/*Game* && ./build.sh bench 12"
 
 # 量 tick 速率（排查"游戏像加速"）

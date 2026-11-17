@@ -59,12 +59,14 @@ jobs:
           echo '--- 服务端日志 ---'
           tail -n 20 /tmp/kf_server.log
 
-      # 节奏门禁：只接"对局整体垮掉"这种回归（全在拖时长 / 全都超时）。
-      # 当前基线（12 局）：平均 298.7 秒、超时 8.3%。阈值放到 480 秒 / 30%，
-      # 既留了平台差异的余量，又能接住"僵持局又回来了"这种回退
-      # （改这条之前是 579.7 秒 / 50%，就是因为总部支援的价格写死在另一个常量上没人发现）。
-      - name: Balancing fence
-        run: ./build/kingdom_fight_bench --matches 12 --check --max-avg-seconds 480 --max-timeout-percent 30
+      # 节奏门禁：跑**出厂节奏**（--shipping = MatchConfig 默认值），不是 bench 的压缩节奏。
+      # 教训：以前只用压缩节奏（900 秒 / 120 秒）跑，大部分局都能在 20 秒内收工，
+      # 于是把"真局 25 分钟才解锁总部支援、一半打不完"这个坑完全盖住了。
+      # 当前出厂基线（12 局）：平均 373.7 秒、超时 8.3%。阈值 720 秒 / 30%，留平台差异余量。
+      - name: Balancing fence (shipping timings)
+        run: >
+          ./build/kingdom_fight_bench --matches 12 --shipping
+          --check --max-avg-seconds 720 --max-timeout-percent 30
 
       # 确定性是这项目的核心承诺（全整数 + 固定种子）。同种子跑两遍，
       # 输出必须逐字节一致；一旦有人往模拟里塞了浮点/时间/随机源，这里立刻红。

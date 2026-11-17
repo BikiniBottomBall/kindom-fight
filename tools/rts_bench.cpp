@@ -86,6 +86,14 @@ int main(int argc, char** argv) {
     int matches = 50;
     bool watch = false;
     bool verbose = false;
+    // 默认是"压缩节奏"：900 秒一局、120 秒解锁总部支援，跑得快、能在一分钟里看到后期机制。
+    // 要验**出厂节奏**就显式传 --match-seconds 1800 --hq-unlock 900，
+    // 否则改一局时长/解锁时间的时候，bench 根本不会反映出来。
+    int match_seconds = 900;
+    int hq_unlock_seconds = 120;
+    // --shipping：不吃上面那两个压缩值，直接用 MatchConfig 的出厂默认
+    //（跟着 types.h 走，改默认值时门禁自动同步，不用在两处抄数字）
+    bool shipping_timing = false;
     // 节奏门禁（CI 用）：--check 时按阈值判定，超了返回 1。
     // 这是一道**下限保险**，不是平衡目标 —— 阈值故意留得很宽，只用来接住
     // "节奏彻底崩掉（全都在拖时长）" 这种回归。平衡目标见 README 的数值基线。
@@ -105,10 +113,19 @@ int main(int argc, char** argv) {
             max_avg_seconds = std::atoi(argv[++i]);
         } else if (std::strcmp(argv[i], "--max-timeout-percent") == 0 && i + 1 < argc) {
             max_timeout_percent = std::atoi(argv[++i]);
+        } else if (std::strcmp(argv[i], "--match-seconds") == 0 && i + 1 < argc) {
+            match_seconds = std::atoi(argv[++i]);
+        } else if (std::strcmp(argv[i], "--hq-unlock") == 0 && i + 1 < argc) {
+            hq_unlock_seconds = std::atoi(argv[++i]);
+        } else if (std::strcmp(argv[i], "--shipping") == 0) {
+            shipping_timing = true;
         } else {
             std::printf(
                 "用法: %s [--matches N] [--watch] [--verbose]\n"
-                "      [--check] [--max-avg-seconds 840] [--max-timeout-percent 85]\n",
+                "      [--shipping] [--match-seconds 900] [--hq-unlock 120]\n"
+                "      [--check] [--max-avg-seconds 840] [--max-timeout-percent 85]\n"
+                "默认是压缩节奏（900 秒 / 120 秒），跑得快但**验不出真局的问题**；\n"
+                "验出厂节奏用 --shipping（直接取 MatchConfig 的默认值）。\n",
                 argv[0]);
             return 2;
         }
@@ -136,10 +153,15 @@ int main(int argc, char** argv) {
         MatchConfig config;
         config.terrain_variant = static_cast<int>(next_random(rng) % kTerrainVariants);
         config.spawn_seed = next_random(rng);
-        // bench 用的是压缩节奏：900 秒（15 分钟）一局、120 秒就解锁总部支援，
-        // 不然 25 分钟才解锁的机制在 bench 局里永远看不到。
-        config.match_seconds = 900;
-        config.hq_unlock_seconds = 120;
+        // 默认压缩节奏；--shipping 用 MatchConfig 的出厂默认（跟着 types.h 走）
+        if (shipping_timing) {
+            const MatchConfig factory{};
+            config.match_seconds = factory.match_seconds;
+            config.hq_unlock_seconds = factory.hq_unlock_seconds;
+        } else {
+            config.match_seconds = match_seconds;
+            config.hq_unlock_seconds = hq_unlock_seconds;
+        }
         if (!sim.start(decks, config, factions)) {
             std::printf("开局失败\n");
             return 1;

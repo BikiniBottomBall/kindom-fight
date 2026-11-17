@@ -38,8 +38,10 @@ case "${1:-all}" in
         build kf_echo tools/echo_server.cpp
         ;;
     bench)
+        # 出厂节奏 + 门禁：和 CI 用同一条命令、同一组阈值
         build kf_bench tools/rts_bench.cpp
-        "$OUT/kf_bench" --matches "${2:-12}" --check
+        "$OUT/kf_bench" --matches "${2:-12}" --shipping --check \
+            --max-avg-seconds 720 --max-timeout-percent 30
         ;;
     smoke)
         # 真实 TCP 端到端：起服务端 → 等端口 → python 客户端断言协议 → 收掉。

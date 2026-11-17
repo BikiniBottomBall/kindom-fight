@@ -14,7 +14,7 @@ WSL 现在只是可选的另一条路径（那条走真正的 epoll）。
 |---|---|---|
 | C++ 单测 | `powershell -ExecutionPolicy Bypass -File build.ps1 test` | **130 / 130 通过** |
 | 服务端端到端 | `./build.sh smoke` | 20 秒内 401 个快照，逐字段对齐；出牌 9 接受 / 1 被拒 |
-| 节奏跑分 | `kingdom_fight_bench --matches 12 --check` | 平均 298.7 秒、超时 8.3%（91.7% 打到只剩一家），门禁通过 |
+| 节奏跑分 | `kingdom_fight_bench --matches 12 --shipping --check` | 平均 405.5 秒、超时 8.3%（91.7% 打到只剩一家），门禁通过 |
 | 确定性 | 同种子跑两遍 `diff` | 完全一致（逐字节） |
 | 客户端协议 | `bash tools/run_godot_tests.sh` | 51 / 51 + 56 / 56 + 美术加载正常 |
 | 整局（`--fast`） | 服务端 `--fast` + 客户端 `--autodeck --bot` | 165.1 秒打出 `base_destroyed`，客户端 stderr 干净 |

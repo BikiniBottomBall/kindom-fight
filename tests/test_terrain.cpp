@@ -325,6 +325,10 @@ TEST(NodesGetCapturedWhenArmiesMarch) {
     Sim sim;
     MatchConfig config;
     config.spawn_seed = 11;
+    // 这条测的是"占地 → 涨上限"，不是"怎么结束对局"。
+    // 总部支援现在 3 分钟就解锁，不关掉的话对局 6 分钟内就被它打完了，
+    // 领地还没长起来（下面的循环也只跑到 300 秒）。所以这里把它压到局末 = 等于关掉。
+    config.hq_unlock_seconds = config.match_seconds;
     CHECK(sim.start(make_decks(), config));
 
     std::array<AiBrain, kPlayers> brains;
