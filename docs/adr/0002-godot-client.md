@@ -1,9 +1,10 @@
-# ADR 0002：客户端采用 Godot 4.5，服务端保持纯 C++
+# ADR 0002：客户端采用 Godot 4.7，服务端保持纯 C++
 
 - 状态：已采纳
 - 日期：项目启动期（修订 ADR 0001 第 2 条）
 - 决策者：项目负责人
 - 修订关系：**本 ADR 取代 ADR 0001 中的「客户端不引入引擎」一条，其余各条继续有效。**
+- 修订（2026-11）：文末新增「客户端工程规矩」三条并已落地；版本由 4.5 更正为 4.7（本机实测 4.7.2.stable.steam）。
 
 ## 背景
 
@@ -12,7 +13,7 @@ ADR 0001 原决定客户端不引入引擎（终端 → 网页）。项目负责
 
 ## 决策
 
-**Godot 4.5 只做客户端的表现层（"壳"），服务端 100% 保持纯 C++。**
+**Godot 4.7 只做客户端的表现层（"壳"），服务端 100% 保持纯 C++。**
 
 Godot 在本项目中的职责，严格限定为三件事：
 
@@ -68,13 +69,47 @@ Godot 客户端是**周末支线**，进度落后不影响服务端推进。
 
 | 项 | 选择 | 理由 |
 |---|---|---|
-| 版本 | **Godot 4.5**（不要 3.x） | GDScript 2.0 与 3.x 不兼容，网上 3.x 教程会坑你 |
+| 版本 | **Godot 4.7**（本机实测 4.7.2；不要 3.x） | GDScript 2.0 与 3.x 不兼容，网上 3.x 教程会坑你 |
 | 语言 | **GDScript** | 客户端只做表现，不需要 C++ 性能；C# 会引入第二套构建 |
 | UI 节点 | `Control` 家族（`Panel`/`Button`/`Label`/`VBoxContainer`/`GridContainer`） | 回合制棋盘 = 一堆按钮，不需要 2D/3D 渲染管线 |
 | 地图表现 | 5 个 `Button` 摆成环形，用 `Line2D` 或 `TextureRect` 画邻接线 | 别做 TileMap，别做寻路 |
 | 网络 | `StreamPeerTCP` + 长度前缀帧 | 最简单，无需在 C++ 侧实现 RFC6455 |
 | 数据表达 | 正式走二进制；调试期可临时用 JSON | 见护栏二上方原则 |
 | 禁用 | GDExtension / Godot 的 C++ 绑定 | 会把 C++ 编译链拖进客户端，纯亏 |
+
+## 客户端工程规矩（GDScript 侧，2026-11 落地）
+
+客户端只有一处**必须**和 C++ 精确对齐：帧格式。这一处按"契约"对待，其余都放养。
+
+### 规矩一：解码器是纯函数，不碰 socket
+
+`client/godot/scripts/kf_protocol.gd` 只做"字节进、帧出"。`StreamPeerTCP` 只负责
+`poll()` → `get_partial_data()` → 把字节喂进去。这样解码器能**脱网单测**：不需要服务端
+在跑，也不需要在编辑器里点运行。
+
+### 规矩二：大端解码只有一个入口
+
+Godot 的 `PackedByteArray.decode_u16/u32/u64` **默认小端、没有大端变体**，而本协议是
+大端。用错不会报错，只会静默错位——典型症状是界面上兵力显示 65536。
+
+- ✅ 只用 `KFProtocol._be16` / `_be32`
+- ❌ 任何 `.gd` 里出现 `decode_u16` / `decode_u32` / `decode_u64`
+- CI 有 grep 检查，违例直接红
+
+### 规矩三：golden 向量是唯一事实来源
+
+`client/godot/tests/golden_frames.txt` 被两边同时读取：
+
+| 侧 | 测试文件 | 跑法 |
+|---|---|---|
+| C++ | `tests/test_golden_protocol.cpp` | `build.ps1 test` / `ctest` |
+| GDScript | `client/godot/tests/test_decoder.gd` | `godot --headless --path client/godot --script res://tests/test_decoder.gd` |
+
+改帧格式 = 同时改 `src/net/protocol.h`、`kf_protocol.gd`、`golden_frames.txt` 三处；
+少改一个，两边必有一侧变红。
+
+**Godot 客户端不进 CI**——CI 只跑 C++ 构建和上面那条静态检查。这是有意的：
+不为一条支线在 CI 里引入引擎二进制和许可证。
 
 ## 必须做的一件事：传输层与协议层解耦
 
@@ -112,7 +147,7 @@ Godot 客户端是**周末支线**，进度落后不影响服务端推进。
 
 - 关键路径不变，但 M2 完成时间推迟约 9 周。
 - 多一套工具链要维护（Godot 项目 + C++ 工程），但两者只通过协议通信，耦合很松。
-- 简历技能栏可以写 Godot 4.5 / GDScript（对后端岗几乎不加分，但对游戏行业岗位有微弱的正面作用）。
+- 简历技能栏可以写 Godot 4.7 / GDScript（对后端岗几乎不加分，但对游戏行业岗位有微弱的正面作用）。
 
 ## 复审条件
 
