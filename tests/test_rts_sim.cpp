@@ -584,7 +584,8 @@ TEST(HqSupportUnlocksAndFires) {
     MatchConfig config;
     config.match_seconds = 120;
     config.hq_unlock_seconds = 3;
-    config.hq_cost_territory = kHqCostTerritory;  // 开局那点领地不够，得靠占点攒
+    // 门槛钉成 5：这条测试要断言"够就能打"，不能依赖开局领地恰好是多少
+    config.hq_cost_territory = 5;
 
     Sim sim;
     CHECK(sim.start(make_decks(), config, make_factions()));
@@ -594,11 +595,24 @@ TEST(HqSupportUnlocksAndFires) {
     CHECK_EQ(sim.hq_state(0), 0);
 
     for (int i = 0; i < 80; ++i) sim.advance();  // 4 秒
-    CHECK_EQ(sim.hq_state(0), 2);  // 解锁了，但没领地
-    CHECK(sim.call_hq(0, kCenter.x, kCenter.y) == PlayResult::NotEnoughResources);
+    // 解锁后：标准门槛下开局领地就够 → 打一发，然后进冷却
+    CHECK_EQ(sim.hq_state(0), 1);
+    CHECK(sim.call_hq(0, kCenter.x, kCenter.y) == PlayResult::Ok);
+    CHECK_EQ(sim.hq_calls(), 1);
+    CHECK_EQ(sim.hq_state(0), 3);  // 冷却中
+    CHECK(sim.call_hq(0, kCenter.x, kCenter.y) == PlayResult::Cooldown);
+
+    // "领地不够"那条分支：门槛抬到开局领地之上。
+    // 不写死 kHqCostTerritory 的具体数值 —— 调价的时候这条测试不用跟着改。
+    MatchConfig poor = config;
+    poor.hq_cost_territory = 999;
+    Sim poor_sim;
+    CHECK(poor_sim.start(make_decks(), poor, make_factions()));
+    for (int i = 0; i < 80; ++i) poor_sim.advance();
+    CHECK_EQ(poor_sim.hq_state(0), 2);
+    CHECK(poor_sim.call_hq(0, kCenter.x, kCenter.y) == PlayResult::NotEnoughResources);
 
     // 跑一局 AI 对打：AI 会抢点攒领地，够了就会砸总部支援
-    // AI 对打用低一点的门槛：这一局只有 120 秒，够验证"攒到领地就会砸"即可
     MatchConfig battle_config = config;
     battle_config.hq_cost_territory = 12;
     Sim battle;
@@ -705,4 +719,100 @@ TEST(BaseExposedUntilTowerIsBuilt) {
     CHECK(!sim.base_exposed(0));
     CHECK(sim.player(0).towers[0].complete());
     CHECK_EQ(sim.player(0).towers[0].hp, sim.player(0).towers[0].max_hp);
+}
+
+TEST(DemolishFreesTowerSlot) {
+    // 拆掉的塔必须立刻把槽位还回来 —— 早版本拆塔后上限仍然被占死，玩家看着"1/3"却造不了。
+    Sim sim;
+    CHECK(sim.start(make_decks(), MatchConfig{}, make_factions()));
+    const Point base = sim.base_position(0);
+
+    // 领地 21~22 → 塔上限 1 + 领地/90 = 1
+    CHECK_EQ(sim.tower_cap(0), 1);
+    CHECK_EQ(sim.tower_count(0), kStartTowerCount);
+
+    CHECK(sim.build_tower(0, base.x + 170, base.y + 40) == PlayResult::Ok);
+    CHECK_EQ(sim.tower_count(0), 1);
+    // 槽位满了：第二座必须被拒（而不是先扣了钱才失败）
+    const Resources before = sim.resources(0);
+    CHECK(sim.build_tower(0, base.x - 170, base.y - 40) == PlayResult::TooManyBuildings);
+    CHECK_EQ(sim.resources(0).materiel, before.materiel);
+
+    // 按 id 拆掉 → 槽位立刻释放（不再强制"至少留一座"，基地本身有防守火力）
+    const int id = sim.player(0).towers.front().id;
+    CHECK(sim.demolish(0, 1, id) == PlayResult::Ok);
+    CHECK_EQ(sim.tower_count(0), 0);
+    CHECK_EQ(sim.tower_cap(0), 1);
+    CHECK(sim.build_tower(0, base.x - 170, base.y - 40) == PlayResult::Ok);
+    CHECK_EQ(sim.tower_count(0), 1);
+}
+
+TEST(EngineersSpeedUpConstruction) {
+    // 工程兵站在工地 220 像素内，建造速度每个 +kEngineerBuildBonus%。
+    // 观测点是 Building::build_ticks：同样的楼，有工程兵的一边完工更快。
+    const int lab_card = card_pool(kTestAlliance)[3];  // 研究所
+    const int workshop_card = 33;                      // 联合商会的工程站
+
+    // 对照组：只有一个研究所，没有工程兵
+    auto solo_decks = make_decks();
+    solo_decks[0][0] = lab_card;
+    Sim solo;
+    CHECK(solo.start(solo_decks, MatchConfig{}, make_factions()));
+    const Point spot = toward_center(solo, 0, 200);
+    CHECK(solo.play_card(0, 0, spot.x, spot.y) == PlayResult::Ok);
+
+    // 实验组：先盖工程站，等工程兵出来，再在同一块地上盖研究所
+    auto eng_decks = make_decks();
+    eng_decks[0][0] = workshop_card;
+    eng_decks[0][1] = lab_card;
+    Sim eng;
+    CHECK(eng.start(eng_decks, MatchConfig{}, make_factions()));
+    CHECK(eng.play_card(0, 0, spot.x, spot.y) == PlayResult::Ok);
+
+    int guard = 0;
+    bool engineer_ready = false;
+    while (guard < 2000 && !engineer_ready) {
+        eng.advance();
+        ++guard;
+        for (const auto& unit : eng.player(0).units) {
+            if (unit.type == UnitType::Engineer && unit.hp > 0) engineer_ready = true;
+        }
+    }
+    CHECK(engineer_ready);
+    if (!engineer_ready) return;
+
+    // 第二栋贴着工程站盖：工程兵就在 60~84 像素的出兵圈上，稳定落在 220 像素内
+    const Building& workshop = eng.player(0).buildings.front();
+    const int lab_slot = eng.slot_of_card(0, lab_card);
+    CHECK(lab_slot >= 0);
+    if (lab_slot < 0) return;
+    CHECK(eng.play_card(0, lab_slot, workshop.x + 130, workshop.y) == PlayResult::Ok);
+
+    const auto lab_ready = [](const Sim& sim) {
+        for (const auto& building : sim.player(0).buildings) {
+            if (building.type == BuildingType::Lab && building.ready) return true;
+        }
+        return false;
+    };
+
+    // 两组都用同一个"跑到完工"的循环，只比 ticks
+    const auto ticks_to_finish_lab = [&](Sim& sim, int limit) {
+        int ticks = 0;
+        while (ticks < limit) {
+            if (lab_ready(sim)) break;
+            sim.advance();
+            ++ticks;
+        }
+        return ticks;
+    };
+
+    const int solo_ticks = ticks_to_finish_lab(solo, 2000);
+    CHECK(lab_ready(solo));
+    const int eng_ticks = ticks_to_finish_lab(eng, 2000);
+    CHECK(lab_ready(eng));
+
+    // 没工程兵：满 kBuildTicks；有工程兵：明显更短
+    CHECK(solo_ticks >= kBuildTicks);
+    CHECK(eng_ticks < solo_ticks);
+    CHECK(eng.engineer_bonus(0) >= kEngineerBuildBonus);
 }

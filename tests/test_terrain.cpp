@@ -1,4 +1,5 @@
 // 地形与资源点单测：自然生成、随机降落点、连通性、资源点约束。
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <deque>
@@ -346,4 +347,24 @@ TEST(NodesGetCapturedWhenArmiesMarch) {
     }
     CHECK(owned > 0);
     (void)rich_owned;
+
+    // 占地的意义：领地变大 → 建筑上限跟着涨。不涨的话"占片区"就只是个刷屏特效。
+    // 开局领地 21~22 → 上限 6；领跑者占下片区之后必须更高。
+    int best_territory = 0;
+    int best_cap = 0;
+    int best_player = -1;
+    for (int p = 0; p < kPlayers; ++p) {
+        const int territory = sim.resources(p).territory;
+        if (territory > best_territory) {
+            best_territory = territory;
+            best_cap = sim.building_cap(p);
+            best_player = p;
+        }
+    }
+    CHECK(best_player >= 0);
+    CHECK(best_territory > 22);
+    CHECK(best_cap > 6);
+    // 公式：clamp(4 + 领地/10 + 经济枢纽, 4, 11)。枢纽最多 +1，所以下限可以精确断言
+    CHECK(best_cap >= std::min(4 + best_territory / 10, 11));
+    CHECK(best_cap <= std::min(5 + best_territory / 10, 11));
 }

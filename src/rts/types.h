@@ -42,8 +42,13 @@ struct MatchConfig {
     // bench 和"快速试玩"会传更小的值，不然一分钟一局根本看不到后期机制。
     int match_seconds = 30 * 60;
     int hq_unlock_seconds = 25 * 60;
-    // 总部支援的领地价格（测试/快速模式可以调小，验证链路用）
-    int hq_cost_territory = 30;  // 同 kHqCostTerritory
+    // 总部支援的领地门槛（也是扣费）。
+    // 30 试过，实际打不出去：领地是"按格子重算"的派生值，开局和收官都在 21 上下，
+    // 够不到 30 —— 于是号称"给僵持局一个确定性结束手段"的总部支援从没被用上，
+    // bench 里一半的局都是两只 100+ 人的军队互相对峙到 900 秒上限。
+    // 15 是"占 1~2 个片区就能点一次"的量级。
+    // 注意：这是**唯一**的一处定义，别再另开一个同名常量（以前就撞过一次）。
+    int hq_cost_territory = 15;
 };
 
 inline constexpr int kBaseHp = 5200;
@@ -409,8 +414,9 @@ inline constexpr int kNightStartPercent = 55;    // 周期过了 55% 就入夜
 //
 // 打到解锁时间之后，用"领地"买一次全图打击 —— 目的不是加内容，
 // 是给僵持局一个**确定性的结束手段**。
+// 价格/门槛见 MatchConfig::hq_cost_territory（放在那里是因为测试和 --fast 会覆盖它，
+// 写死成常量就会出现"改了常量但没人用"的坑）。
 inline constexpr int kHqUnlockDefaultSeconds = 25 * 60;
-inline constexpr int kHqCostTerritory = 30;
 // 领地：开局的领地是主基地周围一圈（四家一样大），之后靠占资源点向外扩。
 inline constexpr int kInitialTerritoryTiles = 12;  // 半径（格）
 inline constexpr int kNodeTerritoryTiles = 10;     // 占下一个资源点扩张的半径

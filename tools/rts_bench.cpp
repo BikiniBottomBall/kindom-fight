@@ -7,6 +7,7 @@
 // 为什么先做这个：数值平衡靠拍脑袋必然反复。先有分布，再改参数。
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -38,6 +39,10 @@ struct Stats {
     long long total_owned_nodes = 0;
     int owned_samples = 0;
     int total_nodes = 0;
+    // 僵持局的诊断：结束时大家手里有多少领地、总部支援到底用没用出去。
+    // （总部支援是设计里的"确定性结束手段"，它没被用起来就说明僵持局是卡在这。）
+    long long total_territory = 0;
+    long long total_hq_calls = 0;
 };
 
 std::uint32_t next_random(std::uint32_t& state) {
@@ -168,6 +173,37 @@ int main(int argc, char** argv) {
         if (watch) {
             std::printf("\n--- 对局 %d 结束 ---\n", index + 1);
             print_watch_line(sim);
+            // 僵持局诊断：军队到底有没有走到敌人基地跟前？
+            // 一支 100+ 人的军队离最近敌基地还有几千像素，那问题不在数值而在移动/索敌。
+            for (int p = 0; p < kPlayers; ++p) {
+                const auto& units = sim.player(p).units;
+                if (units.empty()) continue;
+                long long sum_x = 0;
+                long long sum_y = 0;
+                for (const auto& unit : units) {
+                    sum_x += unit.x;
+                    sum_y += unit.y;
+                }
+                const int cx = static_cast<int>(sum_x / static_cast<long long>(units.size()));
+                const int cy = static_cast<int>(sum_y / static_cast<long long>(units.size()));
+                int best = -1;
+                for (int e = 0; e < kPlayers; ++e) {
+                    if (e == p || sim.eliminated(e)) continue;
+                    const Point enemy = sim.base_position(e);
+                    const int dx = enemy.x - cx;
+                    const int dy = enemy.y - cy;
+                    const int d =
+                        static_cast<int>(std::sqrt(static_cast<double>(dx * dx + dy * dy)));
+                    if (best < 0 || d < best) best = d;
+                }
+                if (best < 0) {
+                    std::printf("      P%d 军队 %3zu 人 中心(%4d,%4d) 距最近敌基地 无\n", p,
+                                units.size(), cx, cy);
+                } else {
+                    std::printf("      P%d 军队 %3zu 人 中心(%4d,%4d) 距最近敌基地 %d\n", p,
+                                units.size(), cx, cy, best);
+                }
+            }
             std::printf("胜者: %d  原因: %s  回合: %d\n\n", sim.winner(),
                         to_string(sim.reason()), sim.tick());
         } else if (verbose && sim.tick() < 500) {
@@ -202,8 +238,14 @@ int main(int argc, char** argv) {
             ++stats.reason_timeout;
         }
         long long hp_left = 0;
-        for (int p = 0; p < kPlayers; ++p) hp_left += sim.base_hp(p);
+        long long territory_left = 0;
+        for (int p = 0; p < kPlayers; ++p) {
+            hp_left += sim.base_hp(p);
+            territory_left += sim.resources(p).territory;
+        }
         stats.total_base_hp_left += hp_left;
+        stats.total_territory += territory_left;
+        stats.total_hq_calls += sim.hq_calls();
         stats.total_survivors += sim.alive_count();
     }
 
@@ -240,6 +282,9 @@ int main(int argc, char** argv) {
         std::printf("结束时平均占领资源点: %.1f / %d\n",
                     static_cast<double>(stats.total_owned_nodes) / stats.owned_samples,
                     stats.total_nodes);
+        std::printf("结束时平均领地: %.0f / 家，总部支援平均呼叫 %.1f 次\n",
+                    static_cast<double>(stats.total_territory) / count / kPlayers,
+                    static_cast<double>(stats.total_hq_calls) / count);
     }
 
     if (!check) return 0;
