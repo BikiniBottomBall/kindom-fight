@@ -61,6 +61,7 @@ struct Session {
     Alliance player_alliance = Alliance::Vanguard;
     int player_unit = -1;  // 局外 DIY：兵营默认兵种
     bool in_match = false;
+    bool paused = false;
     bool over_sent = false;
 };
 
@@ -120,12 +121,11 @@ void start_match(Session& session, Client& client, bool use_ai, Clock::time_poin
         session.brains[static_cast<std::size_t>(p)].set_level(session.ai_level);
     }
     session.in_match = true;
+    session.paused = false;
     session.over_sent = false;
     next_tick = Clock::now() + kTickInterval;
 
-    if (session.player_unit >= 0) {
-        session.sim.set_preferred_unit(0, session.player_unit);
-    }
+    session.sim.set_preferred_unit(0, session.player_unit);
     send(wire::Msg::S2C_Map, wire::encode_map(session.sim), client);
     send(wire::Msg::S2C_MatchStart, wire::encode_match_start(session.sim, 0), client);
     send(wire::Msg::S2C_Snapshot, wire::encode_snapshot(session.sim, 0), client);
@@ -211,7 +211,7 @@ int main(int argc, char** argv) {
 
     while (running) {
         int wait_ms = 100;
-        if (session.in_match) {
+        if (session.in_match && !session.paused) {
             const auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
                                        next_tick - Clock::now())
                                        .count();
@@ -271,12 +271,17 @@ int main(int argc, char** argv) {
 
                 for (const Frame& frame : frames) {
                     const auto msg = static_cast<wire::Msg>(frame.cmd);
+                    if (session.in_match && session.paused && msg != wire::Msg::C2S_SetPause &&
+                        msg != wire::Msg::C2S_Deck && msg != wire::Msg::C2S_Rematch) {
+                        send(wire::Msg::S2C_Error, wire::encode_error("match paused"), client);
+                        continue;
+                    }
                     switch (msg) {
                         case wire::Msg::C2S_Deck: {
                             std::vector<int> deck;
                             Alliance alliance = Alliance::Vanguard;
                             int preferred_unit = -1;
-                        if (!wire::decode_deck(frame.payload, deck, alliance, preferred_unit)) {
+                            if (!wire::decode_deck(frame.payload, deck, alliance, preferred_unit)) {
                                 send(wire::Msg::S2C_Error, wire::encode_error("bad deck"), client);
                                 break;
                             }
@@ -287,6 +292,7 @@ int main(int argc, char** argv) {
                             }
                             session.player_deck = deck;
                             session.player_alliance = alliance;
+                            session.player_unit = preferred_unit;
                             client.deck_submitted = true;
                             client.in_match = true;
                             owner_handle = event.handle;
@@ -294,6 +300,25 @@ int main(int argc, char** argv) {
                             std::printf("[rts] 开局：%d 人混战（玩家 %d 张卡 + 3 个 AI）\n",
                                         kPlayers, static_cast<int>(deck.size()));
                             std::fflush(stdout);
+                            break;
+                        }
+                        case wire::Msg::C2S_SetPause: {
+                            if (owner_handle != event.handle || !session.in_match) {
+                                send(wire::Msg::S2C_Error, wire::encode_error("pause unavailable"), client);
+                                break;
+                            }
+                            if (frame.payload.size() != 1 ||
+                                (frame.payload[0] != '\0' && frame.payload[0] != '\1')) {
+                                send(wire::Msg::S2C_Error, wire::encode_error("bad pause"), client);
+                                break;
+                            }
+                            const bool paused = frame.payload[0] == '\1';
+                            if (session.paused && !paused) {
+                                // 从下一帧继续，暂停期间流逝的时间不补算。
+                                next_tick = Clock::now() + kTickInterval;
+                            }
+                            session.paused = paused;
+                            send(wire::Msg::S2C_PauseState, frame.payload, client);
                             break;
                         }
                         case wire::Msg::C2S_Play: {
@@ -436,7 +461,7 @@ int main(int argc, char** argv) {
         }
 
         // ---- 定时推进模拟 ---------------------------------------------------
-        if (session.in_match) {
+        if (session.in_match && !session.paused) {
             const auto now = Clock::now();
             int steps = 0;
             while (now >= next_tick && steps < 3) {

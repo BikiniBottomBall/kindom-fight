@@ -237,7 +237,7 @@ def parse_snapshot(payload):
     return snap
 
 
-def check_snapshot(snap, map_w, map_h, failures):
+def check_snapshot(snap, map_w, map_h, unit_ids, failures):
     """数值断言：把"能解析但不合理"的情况也变成红灯。"""
     tag = "tick=%d" % snap["tick"]
 
@@ -271,8 +271,8 @@ def check_snapshot(snap, map_w, map_h, failures):
             failures.append("%s 建筑坐标越界 (%d,%d)" % (tag, b["x"], b["y"]))
         if not 0 <= b["progress"] <= 100:
             failures.append("%s 建筑进度越界: %d" % (tag, b["progress"]))
-        # 255 = 用阵营默认兵种
-        if b["train_unit"] != 255 and b["train_unit"] > 8:
+        # 255 = 没有兵种字段，其余值须出现在服务端兵种表里。
+        if b["train_unit"] != 255 and b["train_unit"] not in unit_ids:
             failures.append("%s 兵营兵种越界: %d" % (tag, b["train_unit"]))
 
     for n in snap["nodes"]:
@@ -324,6 +324,7 @@ def main():
     map_w, map_h = 4800, 3200
     territory_cells = 0
     unit_table = []
+    unit_ids = set()
     snapshots = 0
     plays = 0
     accepted = 0
@@ -434,6 +435,7 @@ def main():
                         mat = b.u16()
                         name = b.text()
                         unit_table.append((uid, train, man, mat, name))
+                    unit_ids = {unit[0] for unit in unit_table}
                     if b.left() != 0:
                         failures.append("兵种表解析还剩 %d 字节" % b.left())
                     print("[smoke] 兵种表 %d 个: %s"
@@ -444,7 +446,7 @@ def main():
                 elif cmd == S2C_SNAPSHOT:
                     snap = parse_snapshot(payload)
                     snapshots += 1
-                    check_snapshot(snap, map_w, map_h, failures)
+                    check_snapshot(snap, map_w, map_h, unit_ids, failures)
 
                     if snap["tick"] - last_report >= 100:
                         last_report = snap["tick"]

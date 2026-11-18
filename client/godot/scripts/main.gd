@@ -33,6 +33,8 @@ const S2C_SET_UNIT_ACK := 126
 const C2S_SET_RALLY := 127
 const S2C_SET_RALLY_ACK := 128
 const S2C_UNIT_TABLE := 129
+const C2S_SET_PAUSE := 130
+const S2C_PAUSE_STATE := 131
 const UPGRADE_NAMES := ["小兵血量", "小兵攻击", "训练速度", "卡牌折扣"]
 const UPGRADE_EFFECTS := ["每级 +12% 生命", "每级 +10% 攻击", "每级 +15% 训练速度", "每级 -8% 卡牌费用"]
 const S2C_WELCOME := 101
@@ -90,7 +92,7 @@ var rally_index := -1
 var hand_seen: Array = []
 var audio: Node
 var _ready_buildings := {}
-var preferred_unit := -1
+var preferred_unit_choice := -1
 var unit_buttons: Array = []
 const UNIT_CHOICES := [0, 1, 2, 3, 4, 8, 9, 10, 11]
 const UNIT_CHOICE_NAMES := ["民兵", "长枪兵", "盾卫", "骑手", "弓手", "冲车", "投石车", "弩炮", "加农炮"]
@@ -123,6 +125,7 @@ var hand_signature := ""
 var selected_slot := -1
 var snapshot: Dictionary = {}
 var match_active := false
+var pause_reply_timeout := 0.0
 var last_acked_slot := -1
 var last_ack_result := -1
 var auto_deck := false
@@ -225,9 +228,9 @@ func _ready() -> void:
 	_build_connection_overlay()
 	_build_growth_panel()
 	_build_menu()
-	_build_pause_panel()
 	_build_hover_label()
 	_build_structure_panel()
+	_build_pause_panel()
 	# 根节点铺满全屏，如果保持默认的 MOUSE_FILTER_STOP，它会吃掉所有鼠标事件，
 	# 战场永远收不到点击（合成输入测试抓到过这个坑）。
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -252,7 +255,7 @@ func _ready() -> void:
 
 
 # ---- 手动流程的自动验收（--uitest）--------------------------------------
-# 走真实路径：开始页 → 构筑界面选 6 张 → 开始对局 → 点手牌 → 点战场。
+# 走真实路径：开始页 → 构筑界面 → 开局 → 放置兵营 → 暂停和继续 → 出牌。
 # 这是"能不能玩"的底线检查，别用 --autodeck 糊弄过去。
 func _wait_until(condition: Callable, timeout: float) -> bool:
 	var elapsed := 0.0
@@ -289,8 +292,15 @@ func _run_uitest() -> void:
 	print("[uitest] 第三次点击后已选=%d（应仍为 2）" % selected_cards.size())
 	selected_cards.clear()
 	_refresh_deck_selection()
+	# 把兵营放进第一格手牌，并选按钮序号与兵种 ID 不同的加农炮。
+	for i in ids.size():
+		if int(cards[ids[i]]["building"]) == 2:
+			ids.push_front(ids.pop_at(i))
+			break
 	for i in mini(deck_required, ids.size()):
 		_on_deck_card_pressed(ids[i])
+	var unit_choice := UNIT_CHOICES.size() - 1
+	unit_buttons[unit_choice].pressed.emit()
 	print("[uitest] 已选=%d 确认禁用=%s" % [selected_cards.size(), str(deck_confirm.disabled)])
 
 	_on_confirm_deck()
@@ -302,16 +312,42 @@ func _run_uitest() -> void:
 
 	await get_tree().create_timer(1.5).timeout
 	_on_hand_slot_pressed(0)
-	var base: Vector2 = board.bases[0] if board.bases.size() > 0 else Vector2(400, 400)
-	var screen: Vector2 = board.world_to_screen(base + Vector2(120, 120))
-	var event := InputEventMouseButton.new()
-	event.button_index = MOUSE_BUTTON_LEFT
-	event.pressed = true
-	event.position = screen
-	Input.parse_input_event(event)
+	var base: Vector2 = board.bases[my_player]
+	board.play_requested.emit(base + Vector2(120, 120))
 	await get_tree().create_timer(1.5).timeout
 	print("[uitest] 出牌回执=%d（0 = 服务端接受）" % last_ack_result)
-	var accepted := last_ack_result
+	var train_unit := -1
+	for building in snapshot.get("buildings", []):
+		if int(building.owner) == my_player and int(building.type) == 2:
+			train_unit = int(building.train_unit)
+			break
+	if last_ack_result != 0 or train_unit != UNIT_CHOICES[unit_choice]:
+		push_error("[uitest] 兵营未采用所选兵种，实际 ID=%d" % train_unit)
+		get_tree().quit(1)
+		return
+	print("[uitest] 兵营采用所选兵种，ID=%d" % train_unit)
+
+	var escape := InputEventKey.new()
+	escape.keycode = KEY_ESCAPE
+	escape.pressed = true
+	Input.parse_input_event(escape)
+	if not await _wait_until(func(): return pause_panel.visible, 2.0):
+		push_error("[uitest] ESC 未暂停")
+		get_tree().quit(1)
+		return
+	var paused_tick := int(snapshot.get("tick", -1))
+	await get_tree().create_timer(1.2).timeout
+	if not match_active or int(snapshot.get("tick", -1)) != paused_tick:
+		push_error("[uitest] 暂停后战局仍在推进")
+		get_tree().quit(1)
+		return
+	Input.parse_input_event(escape)
+	if not await _wait_until(func():
+		return not pause_panel.visible and int(snapshot.get("tick", -1)) > paused_tick, 2.0):
+		push_error("[uitest] 再按 ESC 后战局未继续")
+		get_tree().quit(1)
+		return
+	print("[uitest] ESC 暂停期间 tick=%d，继续后 tick=%d" % [paused_tick, snapshot["tick"]])
 
 	# 再连续出 6 张牌，确认整局能持续跑（不是只开个局）
 	var played := 0
@@ -343,7 +379,7 @@ func _run_uitest() -> void:
 		played, str(match_active), str(snapshot.get("remaining", 0)),
 		int(snapshot.get("bases", [0])[0]),
 		board.snapshot.get("units", []).size()])
-	get_tree().quit(0 if accepted == 0 and match_active else 1)
+	get_tree().quit(0 if match_active else 1)
 
 
 # ---------------------------------------------------------------- 搭建
@@ -862,6 +898,8 @@ func _on_connected() -> void:
 
 func _on_disconnected() -> void:
 	match_active = false
+	pause_reply_timeout = 0.0
+	pause_panel.visible = false
 	status_label.text = "连接断开"
 	print("[client] 连接断开")
 	# 关键：没连上服务端时画面本来就是空的（地图和卡表都来自服务端），
@@ -1129,8 +1167,18 @@ func _on_menu_quit() -> void:
 	get_tree().quit()
 
 
+func _set_match_paused(paused: bool) -> void:
+	if not match_active:
+		pause_panel.visible = paused
+		return
+	if pause_reply_timeout > 0.0:
+		return
+	pause_reply_timeout = 3.0
+	net.send(C2S_SET_PAUSE, PackedByteArray([int(paused)]))
+
+
 func _on_pause_resume() -> void:
-	pause_panel.visible = false
+	_set_match_paused(false)
 
 
 func _on_pause_menu() -> void:
@@ -1160,7 +1208,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_on_growth_close()
 			get_viewport().set_input_as_handled()
 			return
-		pause_panel.visible = not pause_panel.visible
+		_set_match_paused(not pause_panel.visible)
 		get_viewport().set_input_as_handled()
 
 
@@ -1228,7 +1276,7 @@ func _on_message(cmd: int, payload: PackedByteArray) -> void:
 			print("[client] 地图 %dx%d，联盟 %s" % [map_cols, map_rows, str(alliances)])
 		S2C_CARD_POOL:
 			_parse_card_pool(payload)
-			if not auto_deck:
+			if not auto_deck and not uitest_mode:
 				_load_profile()
 			if show_deck_on_start:
 				show_deck_on_start = false
@@ -1250,6 +1298,8 @@ func _on_message(cmd: int, payload: PackedByteArray) -> void:
 			var hq_unlock := start.get_u16()
 			deck_panel.visible = false
 			result_panel.visible = false
+			pause_panel.visible = false
+			pause_reply_timeout = 0.0
 			match_active = true
 			selected_slot = -1
 			hq_targeting = false
@@ -1266,6 +1316,10 @@ func _on_message(cmd: int, payload: PackedByteArray) -> void:
 			_on_snapshot(payload)
 		S2C_MATCH_OVER:
 			_on_match_over(payload)
+		S2C_PAUSE_STATE:
+			if match_active and payload.size() == 1:
+				pause_reply_timeout = 0.0
+				pause_panel.visible = payload[0] == 1
 		S2C_HQ_ACK:
 			var ack := _reader(payload)
 			var result := ack.get_u8()
@@ -1527,7 +1581,7 @@ func _refresh_deck_selection() -> void:
 
 
 func _on_unit_choice(index: int) -> void:
-	preferred_unit = index
+	preferred_unit_choice = index
 	for i in unit_buttons.size():
 		unit_buttons[i].set_pressed_no_signal(i == index)
 	audio.play("click", -10.0)
@@ -1547,9 +1601,9 @@ func _load_profile() -> void:
 	if data.has("alliance"):
 		my_alliance = clampi(int(data["alliance"]), 0, ALLIANCE_NAMES.size() - 1)
 	if data.has("preferred_unit"):
-		preferred_unit = int(data["preferred_unit"])
+		preferred_unit_choice = int(data["preferred_unit"])
 	for i in unit_buttons.size():
-		unit_buttons[i].set_pressed_no_signal(i == preferred_unit)
+		unit_buttons[i].set_pressed_no_signal(i == preferred_unit_choice)
 
 
 func _save_profile() -> void:
@@ -1558,7 +1612,7 @@ func _save_profile() -> void:
 		return
 	file.store_string(JSON.stringify({
 		"alliance": my_alliance,
-		"preferred_unit": preferred_unit,
+		"preferred_unit": preferred_unit_choice,
 	}))
 
 func _refresh_deck_faction_header() -> void:
@@ -1588,10 +1642,14 @@ func _on_confirm_deck() -> void:
 		payload.append((id >> 8) & 0xFF)
 		payload.append(id & 0xFF)
 	payload.append(my_alliance)  # 联盟随卡组一起提交
-	# 局外 DIY：再跟一个字节表示兵营默认兵种（255 = 用阵营默认）
-	payload.append(preferred_unit if preferred_unit >= 0 else 255)
+	# 存档保留按钮序号，协议需要兵种 ID（255 = 用阵营默认）。
+	var unit_id := 255
+	if preferred_unit_choice >= 0 and preferred_unit_choice < UNIT_CHOICES.size():
+		unit_id = UNIT_CHOICES[preferred_unit_choice]
+	payload.append(unit_id)
 	net.send(C2S_DECK, payload)
-	_save_profile()
+	if not uitest_mode:
+		_save_profile()
 	status_label.text = "已提交 %s 卡组，等待开局…" % ALLIANCE_NAMES[my_alliance]
 
 
@@ -2057,7 +2115,7 @@ func _refresh_hand_selection() -> void:
 
 
 func _on_play_requested(world_pos: Vector2) -> void:
-	if not match_active:
+	if not match_active or pause_panel.visible or pause_reply_timeout > 0.0:
 		return
 	# 修复模式：花钱把自家受损建筑/塔补满
 	if repair_mode:
@@ -2193,6 +2251,11 @@ func _update_hand_peek() -> void:
 	tween.tween_property(hand_panel, "size:y", CARD_HEIGHT if want else HAND_PEEK, 0.14)
 
 func _process(delta: float) -> void:
+	if pause_reply_timeout > 0.0:
+		pause_reply_timeout = maxf(0.0, pause_reply_timeout - delta)
+		if pause_reply_timeout == 0.0:
+			_show_toast("服务端未确认暂停或继续，请检查服务端版本")
+
 	# 连不上就自动重试：服务端可能比客户端晚起来十几秒（WSL 里要编译）
 	if reconnect_delay > 0.0:
 		reconnect_delay -= delta
@@ -2213,7 +2276,7 @@ func _process(delta: float) -> void:
 		var info: String = board.tile_info_at(board.hover)
 		hover_label.text = ("地形：" + info) if info != "" else ""
 
-	if not bot_mode or not match_active:
+	if not bot_mode or not match_active or pause_panel.visible or pause_reply_timeout > 0.0:
 		return
 	bot_timer -= delta
 	if bot_timer > 0.0:
@@ -2263,6 +2326,8 @@ func _on_match_over(payload: PackedByteArray) -> void:
 		bases.append(buffer.get_u16())
 
 	match_active = false
+	pause_panel.visible = false
+	pause_reply_timeout = 0.0
 	board.set_placement(false, -1)
 	selected_slot = -1
 	result_panel.visible = true
@@ -2404,7 +2469,8 @@ func _show_toast(message: String) -> void:
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode >= KEY_1 and event.keycode <= KEY_4:
-			_on_hand_slot_pressed(event.keycode - KEY_1)
+			if not pause_panel.visible and pause_reply_timeout == 0.0:
+				_on_hand_slot_pressed(event.keycode - KEY_1)
 		elif event.keycode == KEY_ESCAPE:
 			selected_slot = -1
 			board.set_placement(false, -1)

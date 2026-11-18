@@ -44,7 +44,9 @@ enum class Msg : std::uint16_t {
     S2C_SetUnitAck = 126,     // 回执：u8 result
     C2S_SetRally = 127,       // 指定攻击区域：u8 building index, i16 x, i16 y
     S2C_SetRallyAck = 128,    // 回执：u8 result
-    S2C_UnitTable = 129,      // 兵种表：名称/训练时间/成本   // 回执：u8 slot, u8 result
+    S2C_UnitTable = 129,      // 兵种表：名称/训练时间/成本
+    C2S_SetPause = 130,      // u8 paused (0 = 继续, 1 = 暂停)
+    S2C_PauseState = 131,    // u8 paused
 };
 
 // ---- 基础读写 ------------------------------------------------------------

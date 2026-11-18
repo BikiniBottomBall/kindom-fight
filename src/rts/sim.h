@@ -67,6 +67,12 @@ struct PlayerState {
 
     [[nodiscard]] int building_count() const { return static_cast<int>(buildings.size()); }
 
+    [[nodiscard]] UnitType barracks_unit(const Building& building) const {
+        if (building.train_unit >= 0) return static_cast<UnitType>(building.train_unit);
+        if (preferred_unit >= 0) return static_cast<UnitType>(preferred_unit);
+        return trained_unit(alliance);
+    }
+
     [[nodiscard]] int count_of(BuildingType type) const {
         int count = 0;
         for (const auto& building : buildings) {

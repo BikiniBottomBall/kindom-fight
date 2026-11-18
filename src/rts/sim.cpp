@@ -1409,13 +1409,7 @@ void Sim::tick_production(int p) {
                     building.yield_ticks -= kBarracksTicks;
                     add_manpower(state, 1);
                 }
-                // 兵营训练：兵种 = 这个兵营指定的（没有就用阵营默认），
-                // 每个兵种训练时间不同（见 UnitStat::train_ticks）
-                const UnitType chosen_type = building.train_unit >= 0
-                                                 ? static_cast<UnitType>(building.train_unit)
-                                                 : (state.preferred_unit >= 0
-                                                        ? static_cast<UnitType>(state.preferred_unit)
-                                                        : trained_unit(state.alliance));
+                const UnitType chosen_type = state.barracks_unit(building);
                 const UnitStat& chosen_stat = unit_stat(chosen_type);
                 const int speed = std::max(1, 100 + tree_bonus_train_speed(p));
                 const int train_ticks = std::max(1, chosen_stat.train_ticks * 100 / speed);

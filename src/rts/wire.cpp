@@ -227,7 +227,8 @@ std::string encode_snapshot(const Sim& sim, int viewer) {
     for (int p = 0; p < kPlayers; ++p) building_total += sim.player(p).buildings.size();
     writer.u8(static_cast<std::uint8_t>(std::min<std::size_t>(building_total, 255)));
     for (int p = 0; p < kPlayers; ++p) {
-        for (const Building& building : sim.player(p).buildings) {
+        const PlayerState& player = sim.player(p);
+        for (const Building& building : player.buildings) {
             writer.u8(static_cast<std::uint8_t>(p));
             writer.u8(static_cast<std::uint8_t>(building.type));
             writer.i16(static_cast<std::int16_t>(building.x));
@@ -239,9 +240,10 @@ std::string encode_snapshot(const Sim& sim, int viewer) {
                                      ? 100
                                      : std::clamp(building.build_ticks * 100 / building.build_total, 0, 100);
             writer.u8(static_cast<std::uint8_t>(progress));
-            // 兵营：这个兵营训练的兵种（255 = 用阵营默认）+ 指定攻击区域
-            writer.u8(static_cast<std::uint8_t>(
-                building.train_unit < 0 ? 255 : std::clamp(building.train_unit, 0, 254)));
+            // 兵营实际训练的兵种（255 = 非兵营）+ 指定攻击区域
+            writer.u8(building.type == BuildingType::Barracks
+                          ? static_cast<std::uint8_t>(player.barracks_unit(building))
+                          : 255);
             writer.i16(static_cast<std::int16_t>(std::clamp(building.rally_x, -1, 65535)));
             writer.i16(static_cast<std::int16_t>(std::clamp(building.rally_y, -1, 65535)));
         }
